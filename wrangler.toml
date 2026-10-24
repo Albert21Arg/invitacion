@@ -1,0 +1,22 @@
+name = "carta-sellada-invitaciones"
+main = "worker/index.js"
+compatibility_date = "2026-10-22"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "carta-sellada-db"
+database_id = "REEMPLAZAR_CON_ID_DE_D1"
+
+# Variables (no secretas). La clave pública de Turnstile es opcional.
+# [vars]
+# TURNSTILE_SITE_KEY = "0x4AAAA..."
+#
+# Secretos (se guardan con `npx wrangler secret put NOMBRE`):
+#   ADMIN_SETUP_KEY   -> clave de un solo uso para crear el primer administrador en /admin
+#   TURNSTILE_SECRET  -> (opcional) activa la verificación Turnstile en RSVP y login
