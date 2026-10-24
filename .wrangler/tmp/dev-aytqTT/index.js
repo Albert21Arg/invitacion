@@ -136,6 +136,7 @@ async function publicInvitation(env, req, url) {
       e.venue, e.address, e.message, e.status, e.event_type, r.attendance, r.guest_count, r.message AS rsvp_message
     FROM guests g JOIN events e ON e.id = g.event_id LEFT JOIN rsvps r ON r.guest_id = g.id WHERE g.token_hash = ?`).bind(await sha256(token)).first();
   if (!row || row.status === "draft") return json({ error: "El enlace de invitaci\xF3n no es v\xE1lido." }, 404);
+  await env.DB.prepare("UPDATE guests SET opened_at = COALESCE(opened_at, datetime('now')) WHERE token_hash = ?").bind(await sha256(token)).run();
   return json({
     guest: { name: row.guest_name, maxGuests: row.max_guests },
     event: { title: row.title, babyName: row.baby_name, parentNames: row.parent_names, date: row.event_date, time: row.event_time, venue: row.venue, address: row.address, message: row.message, closed: row.status === "closed", type: row.event_type },
@@ -341,7 +342,7 @@ async function handleAdmin(env, req, url, path) {
     if (method === "GET") {
       const event = await env.DB.prepare(`SELECT ${EVENT_COLS} FROM events WHERE id = ?`).bind(eid).first();
       if (!event) return json({ error: "Evento no encontrado." }, 404);
-      const { results } = await env.DB.prepare(`SELECT g.id, g.name, g.phone, g.max_guests, g.created_at, r.attendance, r.guest_count, r.message, r.updated_at AS responded_at
+      const { results } = await env.DB.prepare(`SELECT g.id, g.name, g.phone, g.max_guests, g.created_at, g.opened_at, r.attendance, r.guest_count, r.message, r.updated_at AS responded_at
         FROM guests g LEFT JOIN rsvps r ON r.guest_id = g.id WHERE g.event_id = ? ORDER BY g.created_at DESC`).bind(eid).all();
       const votes = await voteCounts(env, eid);
       return json({ event, guests: results, votes });
@@ -436,10 +437,10 @@ async function pageWithOpenGraph(env, req, url) {
   }
   if (!row || row.status === "draft") return new Response(res.body, { status: res.status, headers });
   const reveal = row.event_type === "gender_reveal";
-  const title = reveal ? row.parent_names ? `${row.parent_names} te invitan: \xBFni\xF1o o ni\xF1a?` : "\xBFNi\xF1o o ni\xF1a? Desc\xFAbrelo con nosotros" : row.parent_names ? `${row.parent_names} te invitan a una celebraci\xF3n especial` : row.title || "Una invitaci\xF3n especial";
+  const title = reveal ? `${row.parent_names ? `${row.parent_names}: ` : ""}Revelaci\xF3n` : row.parent_names ? `${row.parent_names} te invitan a una celebraci\xF3n especial` : row.title || "Una invitaci\xF3n especial";
   const when = [fmtDateEs(row.event_date), row.event_time].filter(Boolean).join(" \xB7 ");
   const lead = reveal ? "Vota y descubre el secreto con nosotros." : row.baby_name ? `Celebremos la llegada de ${row.baby_name}.` : "";
-  const description = [lead, when, row.venue].filter(Boolean).join(" \u2014 ") || "Abre tu carta y confirma tu asistencia.";
+  const description = reveal ? "" : [lead, when, row.venue].filter(Boolean).join(" \u2014 ") || "Abre tu carta y confirma tu asistencia.";
   const image = `${url.origin}/og.png`;
   const tags = `<meta property="og:type" content="website"/><meta property="og:locale" content="es_CO"/><meta property="og:site_name" content="Invitaci\xF3n"/>
 <meta property="og:title" content="${esc(title)}"/><meta property="og:description" content="${esc(description)}"/>
@@ -541,7 +542,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-b9bNQC/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-Y8T1mL/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -573,7 +574,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-b9bNQC/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-Y8T1mL/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

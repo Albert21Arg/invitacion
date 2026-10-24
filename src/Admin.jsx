@@ -96,18 +96,19 @@ function EventDetail({ id, onBack, onEdit, onDeleted }) {
   const load = useCallback(() => api(`/api/admin/events/${id}`).then(setData).catch(e => setError(e.message)), [id]);
   useEffect(() => { load(); }, [load]);
   const live = data && data.event.event_type === 'gender_reveal';
-  useEffect(() => { // contador en vivo también en el panel
-    if (!live) return;
-    const t = setInterval(() => { if (!document.hidden) load(); }, 4000);
+  useEffect(() => {
+    if (!data) return;
+    const t = setInterval(() => { if (!document.hidden) load(); }, live ? 4000 : 15000);
     return () => clearInterval(t);
-  }, [live, load]);
+  }, [!!data, live, load]);
   if (error && !data) return <div className="admin-card"><p className="admin-error">{error}</p><button className="ghost" onClick={onBack}>Volver</button></div>;
   if (!data) return <p className="admin-note">Cargando…</p>;
   const { event, guests } = data;
   const yes = guests.filter(g => g.attendance === 'yes'), no = guests.filter(g => g.attendance === 'no');
   const people = yes.reduce((n, g) => n + g.guest_count, 0);
   const isReveal = event.event_type === 'gender_reveal';
-  const intro = (name) => `Hola ${name.split(' ')[0]} 💛 ${event.parent_names ? `${event.parent_names} te invitan` : 'Te invitamos'} ${isReveal ? 'a descubrir si será niño o niña 💙💗. Abre tu carta, vota y confirma tu asistencia aquí:' : 'a una celebración muy especial. Abre tu carta y confirma tu asistencia aquí:'}`;
+  const intro = (name) => `Hola ${name.split(' ')[0]} 💛 ${event.parent_names ? `${event.parent_names} te invitan` : 'Te invitamos'} a una celebración muy especial. Abre tu carta y confirma tu asistencia aquí:`;
+  const whatsappText = (name, link) => `${isReveal ? `${event.parent_names || 'Revelación'}: Revelación` : intro(name)}\n${link}`;
 
   async function addGuest(e) {
     e.preventDefault(); setBusy(true); setError('');
@@ -147,7 +148,7 @@ function EventDetail({ id, onBack, onEdit, onDeleted }) {
       <input readOnly value={fresh.link} onFocus={e => e.target.select()} aria-label="Enlace de invitación"/>
       <div className="admin-actions">
         <button className="primary" onClick={() => copy(fresh.link)}>{copied ? '¡Copiado!' : 'Copiar enlace'}</button>
-        {fresh.phone && <a className="ghost as-btn" target="_blank" rel="noopener noreferrer" href={waLink(fresh.phone, `${intro(fresh.name)} ${fresh.link}`)}>Enviar por WhatsApp</a>}
+        {fresh.phone && <a className="ghost as-btn" target="_blank" rel="noopener noreferrer" href={waLink(fresh.phone, whatsappText(fresh.name, fresh.link))}>Enviar por WhatsApp</a>}
         <button className="ghost" onClick={() => setFresh(null)}>Cerrar</button>
       </div>
     </div>}
@@ -165,8 +166,11 @@ function EventDetail({ id, onBack, onEdit, onDeleted }) {
       <h3>Invitados ({guests.length})</h3>
       {guests.length === 0 && <p className="admin-note">Aún no hay invitados.</p>}
       <ul className="guest-list">{guests.map(g => <li key={g.id}>
-        <div className="g-main"><strong>{g.name}</strong>
-          <span className={`pill ${g.attendance ? (g.attendance === 'yes' ? 'pill-published' : 'pill-closed') : 'pill-draft'}`}>{g.attendance === 'yes' ? `Asiste (${g.guest_count}/${g.max_guests})` : g.attendance === 'no' ? 'No asiste' : `Pendiente · ${g.max_guests} cupo${g.max_guests > 1 ? 's' : ''}`}</span></div>
+        <div className="g-main"><strong>{g.name}</strong></div>
+        <div className="guest-statuses">
+          <span className={`pill ${g.opened_at ? 'pill-published' : 'pill-draft'}`}>{g.opened_at ? 'Abierta' : 'Sin abrir'}</span>
+          <span className={`pill ${g.attendance ? (g.attendance === 'yes' ? 'pill-published' : 'pill-closed') : 'pill-draft'}`}>{g.attendance === 'yes' ? `Asiste (${g.guest_count}/${g.max_guests})` : g.attendance === 'no' ? 'No asiste' : `Pendiente · ${g.max_guests} cupo${g.max_guests > 1 ? 's' : ''}`}</span>
+        </div>
         {g.message && <p className="g-msg">“{g.message}”</p>}
         <div className="g-actions"><button className="link" onClick={() => regenerate(g)}>Nuevo enlace</button><button className="link danger" onClick={() => removeGuest(g)}>Eliminar</button></div>
       </li>)}</ul>

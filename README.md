@@ -6,7 +6,7 @@ Frontend React + Vite · Worker de Cloudflare · base de datos D1.
 ## Qué incluye
 0. **Revelación de sexo**: tipo de invitación con votación niño/niña y contador en vivo (ver sección abajo).
 1. **Carta conectada a D1**: `GET /api/invitation?i=TOKEN` devuelve evento, invitado (nombre, cupos) y su respuesta previa. Sin token se muestra una demo.
-2. **Panel privado en `/admin`**: primer acceso con clave de configuración, login con sesión, crear/editar/publicar/cerrar eventos, agregar invitados, generar enlaces únicos (copiar o enviar por WhatsApp), ver respuestas y totales, regenerar enlace, eliminar.
+2. **Panel privado en `/admin`**: primer acceso con clave de configuración, login con sesión, crear/editar/publicar/cerrar eventos, agregar invitados, generar enlaces únicos (copiar o enviar por WhatsApp), ver quién abrió cada invitación, respuestas y totales, regenerar enlace, eliminar.
 3. **Seguridad y vista previa**: Open Graph dinámico por invitación, Turnstile opcional, rate limiting, `noindex`.
 
 ## Desarrollo local
@@ -25,10 +25,9 @@ ADMIN_SETUP_KEY=una-clave-larga-y-aleatoria
 
 ## Publicación
 ```bash
-npx wrangler d1 create carta-sellada-db        # copia database_id a wrangler.toml
-npx wrangler d1 migrations apply carta-sellada-db --remote   # aplica 0001, 0002 y 0003
+npx wrangler d1 migrations apply carta-sellada-db --remote   # aplica todas las migraciones pendientes (incluye 0005)
 npx wrangler secret put ADMIN_SETUP_KEY
-npm run build && npx wrangler deploy
+npm run deploy
 ```
 Luego abre `https://TU-DOMINIO/admin`, crea tu cuenta (contraseña ≥ 12 caracteres) y **elimina el secreto** `ADMIN_SETUP_KEY` (`npx wrangler secret delete ADMIN_SETUP_KEY`); ya no hace falta y, mientras no exista, el alta inicial queda deshabilitada.
 
@@ -47,7 +46,7 @@ Con ambos definidos, se exige en el RSVP y en el login. Sin ellos, solo actúa e
 - Eventos en `draft` no abren; eventos `closed` se ven pero rechazan confirmaciones.
 
 ## Open Graph y WhatsApp
-Al abrir `/?i=TOKEN`, el Worker inyecta `og:title`, `og:description`, `og:url` y `og:image` según el evento (sin incluir el nombre del invitado). La imagen es estática: `public/og.png` (1200×630); reemplázala por la tuya. Una imagen distinta por evento requeriría generar PNG en el Worker o subirlas a R2 (pendiente). WhatsApp cachea las vistas previas: si cambias datos, puede tardar en actualizarse.
+Al abrir `/?i=TOKEN`, el Worker inyecta `og:title`, `og:description`, `og:url` y `og:image` según el evento (sin incluir el nombre del invitado). En eventos de revelación, la tarjeta solo incluye la imagen, los anfitriones con “Revelación” y el enlace. La imagen es estática: `public/og.png` (1200×630); reemplázala por la tuya. Una imagen distinta por evento requeriría generar PNG en el Worker o subirlas a R2 (pendiente). WhatsApp cachea las vistas previas: si cambias datos, puede tardar en actualizarse.
 
 ## Pendiente / decisiones tuyas
 - Fijar versiones de dependencias (hoy están en `latest`) y generar el lockfile con `npm install`.
@@ -58,6 +57,8 @@ Al abrir `/?i=TOKEN`, el Worker inyecta `og:title`, `og:description`, `og:url` y
 En el panel elige **Tipo de invitación → Revelación de sexo**. Cada invitado abre su carta y vota **Equipo Niño** o **Equipo Niña**; el contador se actualiza solo cada 3 s (en el panel, cada 4 s).
 
 La invitación de revelación se presenta en vistas separadas y en este orden: invitación con cuenta regresiva, votación, resultados en vivo, confirmación de asistencia y agradecimiento. Cada paso tiene un botón explícito para continuar; la asistencia solo se solicita después de votar y ver los resultados, y el agradecimiento aparece al registrar el RSVP. Después de votar, la pantalla de votación muestra únicamente el osito del equipo elegido. En resultados se usa la ilustración del árbol compartida por el usuario; se agrega una hoja azul por cada voto al equipo Niño y una rosa por cada voto al equipo Niña, distribuyéndolas al azar por el tronco, la copa y las puntas de las ramas.
+
+Las vistas públicas (invitación, voto, resultados, confirmación y agradecimiento) se ajustan a pantallas móviles desde 320×568 sin desplazamiento de página. En las invitaciones tradicionales, el formulario de confirmación se abre como una vista compacta para conservar la legibilidad. Las listas y formularios administrativos pueden desplazarse cuando su contenido excede la pantalla.
 
 **Un voto por persona invitada.** Cada enlace permite registrar tantos votos como **cupos** tenga; las personas invitadas pueden elegir su equipo desde el mismo teléfono. El total de votos queda limitado en el servidor al número de cupos de ese enlace. La cookie `HttpOnly` y el id en `localStorage` permiten recuperar los votos registrados desde ese navegador, pero no limitan a una persona por dispositivo.
 *Límite honesto:* en la web no existe un identificador real de cada asistente. Si se borran las cookies y los datos del sitio, se pierde la asociación de ese navegador con sus votos; el tope de cupos del enlace sigue vigente.

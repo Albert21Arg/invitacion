@@ -315,7 +315,7 @@
   .vote-art,.voted-bear-frame{height:24svh;min-height:125px}
   .thanks-art{height:23svh;min-height:125px}
   .attendance-summary{gap:3px;margin:4px auto 0}
-  .reveal-attendance .attendance-summary{display:none}
+  .reveal-attendance .attendance-summary{display:grid;gap:3px;margin:4px auto 0}
   .attendance-rsvp{margin-top:3px}
   .attendance-rsvp .rsvp{padding:8px 10px}
   .attendance-rsvp h3{margin-bottom:4px}
@@ -328,3 +328,130 @@
   .thanks-overline{margin-bottom:4px}
 }
 @media(prefers-reduced-motion:reduce){.reveal-team,.reveal-primary{transition:none!important}.tree-leaf{animation:none}}
+
+/* Mármol claro y tipografía con más contraste y presencia. */
+:root{color:#292e26;background-color:#e8e7e1}
+.page:not(.gender-page),.page.gender-page,.admin,.admin-auth{
+  background-color:#e8e7e1;
+  background-image:
+    radial-gradient(ellipse at 16% 18%,#fffefa 0%,transparent 43%),
+    radial-gradient(ellipse at 84% 78%,#d1d1ca99 0%,transparent 47%),
+    radial-gradient(ellipse at 7% 105%,transparent 0 46%,#85867d1c 46.2%,#fffefaaa 46.4%,transparent 46.8%),
+    radial-gradient(ellipse at 98% -20%,transparent 0 52%,#85867d14 52.15%,#fffefaaa 52.4%,transparent 52.7%);
+  color:#292e26
+}
+.gender-shell{
+  background-color:#fffdf8;
+  background-image:
+    radial-gradient(ellipse at 48% 32%,#fffefa 0%,#fbf7ee 68%,#eee9dd 100%),
+    radial-gradient(ellipse at 5% 110%,transparent 0 46%,#85867d16 46.2%,#fffefaaa 46.4%,transparent 46.8%),
+    radial-gradient(ellipse at 102% -18%,transparent 0 52%,#85867d12 52.15%,#fffefaaa 52.4%,transparent 52.7%);
+  color:#292e26
+}
+.eyebrow,.micro,.event-title,.details p,.details small,.rsvp label,.choices button,.status,.closing,
+.admin label,.admin-note,.admin-error,.admin-card p,.admin-card li,.admin input,.admin textarea,.admin select,
+.admin-auth input,.admin-auth label,.reveal-overline,.reveal-copy,.reveal-event-details p,.reveal-event-details small,
+.reveal-map-link,.reveal-note,.attendance-summary p,.attendance-summary small,.vote-subtitle,.vote-anonymity,
+.reveal-text-button,.countdown-part span,.legend-team,.legend-team strong{
+  color:#30352c
+}
+.micro,.gender-footer{font-size:12px;font-weight:600}
+.details p,.reveal-event-details p{font-size:15px;font-weight:600}
+.details small,.reveal-event-details small{font-size:13px;font-weight:500}
+.intro,.reveal-copy{font-size:19px;font-weight:600}
+.event-title{font-size:20px;font-weight:600}
+.rsvp label,.admin label,.admin-auth label{font-size:15px;font-weight:600}
+.rsvp input,.rsvp textarea,.admin input,.admin textarea,.admin select,.admin-auth input{font-size:16px;font-weight:500}
+.choices button{font-size:14px;font-weight:600}
+.status,.admin-note,.admin-error,.reveal-note,.attendance-summary p,.attendance-summary small{font-size:14px;font-weight:600}
+.maplink,.reveal-map-link{font-size:14px;font-weight:600}
+.reveal-overline,.thanks-overline,.countdown-part span{font-size:12px;font-weight:700}
+.reveal-event-details{color:#30352c}
+.reveal-primary,.reveal-text-button,.reveal-back{font-size:15px;font-weight:700}
+.vote-subtitle{font-size:20px;font-weight:600}
+.vote-anonymity,.legend-team{font-size:15px;font-weight:600}
+.legend-team strong{font-size:14px;font-weight:700}
+.reveal-team small{font-size:12px;font-weight:600}
+.reveal-total{font-size:16px;font-weight:600}
+.admin-bar{font-size:15px;font-weight:600}
+.admin-bar span{font-size:13px;font-weight:600}
+.admin-note{line-height:1.55}
+.admin-error{line-height:1.45}
+footer{font-size:11px;font-weight:600}
+.guest-statuses{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+
+@media(max-width:599px){
+  .page.letter-open-page{height:100svh;min-height:100svh;overflow:hidden;padding:0 12px}
+  .letter-open-page .letter-content{width:min(100%,440px);height:calc(100svh - 30px);min-height:0;flex:1 1 auto;justify-content:center;gap:0;padding:6px 8px}
+  .letter-open-page .mini-seal{width:36px;height:36px;margin:0 0 5px;font-size:21px}
+  .letter-open-page .eyebrow{margin:2px 0 4px;font-size:14px;letter-spacing:.1em}
+  .letter-open-page h1{max-width:100%;margin:2px 0 5px;font-size:clamp(36px,10vw,42px);line-height:.92}
+  .letter-open-page .intro{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;max-width:330px;margin:2px auto 5px;font-size:17px;line-height:1.2}
+  .letter-open-page .bear{margin:0;font-size:48px;line-height:1}
+  .letter-open-page .event-title{margin:2px 0;font-size:16px;line-height:1.15}
+  .letter-open-page h2{max-width:100%;overflow:hidden;margin:0 0 4px;font-size:27px;line-height:1.05;text-overflow:ellipsis;white-space:nowrap}
+  .letter-open-page .details{margin:1px auto 6px;padding:5px 4px}
+  .letter-open-page .details p{gap:8px;margin:5px 0;font-size:14px;line-height:1.2}
+  .letter-open-page .details svg{width:16px;height:16px}
+  .letter-open-page .details small{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2;margin-top:2px;font-size:13px;line-height:1.2}
+  .letter-open-page .details small .maplink{font-size:14px}
+  .letter-open-page>.letter-content>.primary{min-height:46px;padding:11px 20px;font-size:16px}
+  .letter-open-page .status{max-width:100%;margin:4px auto;font-size:14px;line-height:1.25}
+  .letter-open-page .closing{gap:4px;margin:5px 0 0;font-size:14px;line-height:1.15}
+  .letter-open-page>footer{flex:none;min-height:30px;padding:5px 0;font-size:12px}
+  .letter-open-page .letter-content.rsvp-open{justify-content:center;padding:6px 8px}
+  .letter-open-page .rsvp-open>.primary{flex:none;min-height:44px;margin:0 auto 6px;padding:10px 18px;font-size:15px}
+  .letter-open-page .rsvp-open .rsvp{width:100%;margin:0 auto;padding:12px}
+  .letter-open-page .rsvp-open .rsvp h3{margin:0 0 7px;font-size:23px;line-height:1.1}
+  .letter-open-page .rsvp-open .rsvp label{margin:6px 0;font-size:14px;line-height:1.2}
+  .letter-open-page .rsvp-open .choices{gap:6px}
+  .letter-open-page .rsvp-open .choices button{min-height:44px;padding:7px 4px;font-size:14px;line-height:1.15}
+  .letter-open-page .rsvp-open .counter{gap:14px;margin-top:4px}
+  .letter-open-page .rsvp-open .counter button{width:36px;height:36px}
+  .letter-open-page .rsvp-open .rsvp textarea{height:58px;min-height:58px;resize:none}
+  .letter-open-page .rsvp-open .rsvp>.primary{width:100%;min-height:46px;padding:10px 16px;font-size:15px}
+  .reveal-overline,.thanks-overline,.countdown-part span{font-size:14px;letter-spacing:.1em}
+  .reveal-screen .eyebrow,.reveal-screen .micro,.gender-footer{font-size:14px}
+  .reveal-team small{font-size:14px}
+  .attendance-summary small{font-size:14px}
+  .reveal-event-details small,.reveal-map-hint{font-size:14px!important}
+  .reveal-copy{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+  .reveal-event-details small{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .reveal-location{display:block;min-width:0}
+  .reveal-location>span{display:block;overflow-wrap:anywhere}
+  .attendance-summary small{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .reveal-live{font-size:14px;letter-spacing:.08em}
+  .pill{font-size:12px}
+  .admin .pill{font-size:12px}
+}
+@media(max-width:599px) and (max-height:700px){
+  .letter-open-page .letter-content{padding-top:3px;padding-bottom:3px}
+  .letter-open-page .mini-seal{width:30px;height:30px;margin-bottom:3px;font-size:18px}
+  .letter-open-page .eyebrow{font-size:14px;line-height:1.1}
+  .letter-open-page h1{font-size:clamp(32px,9vw,36px);line-height:.9;margin:1px 0 3px}
+  .letter-open-page .intro{font-size:15px;line-height:1.12;-webkit-line-clamp:2;margin:1px auto 3px}
+  .reveal-copy{-webkit-line-clamp:2}
+  .letter-open-page .bear{font-size:40px}
+  .letter-open-page .event-title{font-size:15px}
+  .letter-open-page h2{font-size:24px}
+  .letter-open-page .details{padding:3px 2px;margin-bottom:4px}
+  .letter-open-page .details p{margin:3px 0;font-size:14px}
+  .letter-open-page .details small{font-size:14px;-webkit-line-clamp:1}
+  .letter-open-page .closing{margin-top:3px;font-size:14px}
+  .letter-open-page .rsvp-open .rsvp{padding:9px}
+  .letter-open-page .rsvp-open .rsvp h3{font-size:21px}
+  .letter-open-page .rsvp-open .rsvp label{margin:4px 0}
+  .letter-open-page .rsvp-open .rsvp input,.letter-open-page .rsvp-open .rsvp textarea{padding:8px}
+}
+@media(max-width:599px){
+  .page.cover-page{height:100svh;min-height:100svh;overflow:hidden;padding:0 12px}
+  .cover-page .cover{width:min(100%,440px);height:calc(100svh - 30px);min-height:0;flex:1 1 auto;justify-content:center;padding:8px}
+  .cover-page .eyebrow{margin:2px 0;font-size:14px;letter-spacing:.12em}
+  .cover-page .envelope{width:min(64vw,250px);height:min(46vw,185px);margin:10px auto 14px}
+  .cover-page h1{max-width:100%;font-size:clamp(38px,12vw,48px);line-height:.95}
+  .cover-page .tap{margin:4px 0 10px;font-size:20px}
+  .cover-page .primary{min-height:46px;padding:11px 20px;font-size:16px}
+  .cover-page .micro{max-width:100%;margin:10px 0 0;font-size:14px}
+  .cover-page>.cover .intro{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3;margin:5px auto;font-size:17px;line-height:1.2}
+  .cover-page>footer{flex:none;min-height:30px;padding:5px 0;font-size:12px}
+}

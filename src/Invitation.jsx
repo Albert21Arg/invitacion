@@ -69,10 +69,10 @@ export default function Invitation() {
     finally { setBusy(false); }
   }
 
-  const frame = (children) => <main className="page"><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/></footer></main>;
+  const frame = (children, pageClass = '') => <main className={`page ${pageClass}`.trim()}><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/></footer></main>;
 
-  if (loadError) return frame(<section className="cover"><div className="mini-seal">♡</div><h1>Ups</h1><p className="intro">{loadError}</p><p className="micro">Revisa que el enlace esté completo o pide uno nuevo a quien te invitó.</p></section>);
-  if (!data) return frame(<section className="cover"><div className="mini-seal">♡</div><p className="tap">Preparando tu carta…</p></section>);
+  if (loadError) return frame(<section className="cover"><div className="mini-seal">♡</div><h1>Ups</h1><p className="intro">{loadError}</p><p className="micro">Revisa que el enlace esté completo o pide uno nuevo a quien te invitó.</p></section>, 'cover-page');
+  if (!data) return frame(<section className="cover"><div className="mini-seal">♡</div><p className="tap">Preparando tu carta…</p></section>, 'cover-page');
 
   const { event, guest } = data;
   const maps = event.venue || event.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([event.venue, event.address].filter(Boolean).join(', '))}` : null;
@@ -97,7 +97,7 @@ export default function Invitation() {
     <h1>{guest.name ? guest.name.split(' ')[0] : 'Invitación'}</h1><p className="tap">Toca para abrir</p>
     <button className="primary" onClick={() => setOpened(true)}>Abrir mi carta <ArrowDown size={16}/></button>
     <p className="micro">Con cariño, para alguien especial</p>
-  </section>);
+  </section>, 'cover-page');
 
   if (reveal) return <main className="page gender-page">
     <div className="gender-shell">
@@ -163,27 +163,29 @@ export default function Invitation() {
     </div>
   </main>;
 
-  return frame(<section className="letter-content">
-    <div className="mini-seal">♡</div>
-    {reveal ? <><p className="eyebrow">ES HORA DE DESCUBRIRLO</p><h1>¿Niño<br/><em>o niña?</em></h1></>
-      : <><p className="eyebrow">UNA NUEVA HISTORIA COMIENZA</p><h1>Un pequeño amor<br/><em>está por llegar</em></h1></>}
-    <p className="intro">{event.message || (reveal
-      ? `${event.parentNames || 'Nosotros'} queremos que seas parte del momento en que descubriremos si nuestro bebé es niño o niña.`
-      : `${event.parentNames || 'Nosotros'} queremos compartir contigo uno de los momentos más especiales de nuestras vidas.`)}</p>
-    <div className="bear" aria-hidden="true">{reveal ? '💙💗' : '🧸'}</div>
-    {event.babyName && <><p className="event-title">{reveal ? 'Descubramos juntos el secreto de' : 'Celebremos la llegada de'}</p><h2>{event.babyName}</h2></>}
-    <div className="details">
-      {event.date && <p><CalendarDays/> <span>{formatDate(event.date)}</span></p>}
-      {event.time && <p><Clock/> <span>{formatTime(event.time)}</span></p>}
-      {(event.venue || event.address) && <p><MapPin/> <span>{event.venue}<small>{event.address}</small>{maps && <small><a className="maplink" href={maps} target="_blank" rel="noopener noreferrer">Ver en el mapa</a></small>}</span></p>}
-    </div>
-    {reveal && !data.demo && <Vote token={token}/>}
-    {reveal && data.demo && <p className="status">Aquí aparecerá la votación en vivo cuando abras un enlace individual.</p>}
+  return frame(<section className={`letter-content ${showForm ? 'rsvp-open' : ''}`}>
+    {!showForm && <>
+      <div className="mini-seal">♡</div>
+      {reveal ? <><p className="eyebrow">ES HORA DE DESCUBRIRLO</p><h1>¿Niño<br/><em>o niña?</em></h1></>
+        : <><p className="eyebrow">UNA NUEVA HISTORIA COMIENZA</p><h1>Un pequeño amor<br/><em>está por llegar</em></h1></>}
+      <p className="intro">{event.message || (reveal
+        ? `${event.parentNames || 'Nosotros'} queremos que seas parte del momento en que descubriremos si nuestro bebé es niño o niña.`
+        : `${event.parentNames || 'Nosotros'} queremos compartir contigo uno de los momentos más especiales de nuestras vidas.`)}</p>
+      <div className="bear" aria-hidden="true">{reveal ? '💙💗' : '🧸'}</div>
+      {event.babyName && <><p className="event-title">{reveal ? 'Descubramos juntos el secreto de' : 'Celebremos la llegada de'}</p><h2>{event.babyName}</h2></>}
+      <div className="details">
+        {event.date && <p><CalendarDays/> <span>{formatDate(event.date)}</span></p>}
+        {event.time && <p><Clock/> <span>{formatTime(event.time)}</span></p>}
+        {(event.venue || event.address) && <p><MapPin/> <span>{event.venue}<small>{event.address}</small>{maps && <small><a className="maplink" href={maps} target="_blank" rel="noopener noreferrer">Ver en el mapa</a></small>}</span></p>}
+      </div>
+      {reveal && !data.demo && <Vote token={token}/>}
+      {reveal && data.demo && <p className="status">Aquí aparecerá la votación en vivo cuando abras un enlace individual.</p>}
+    </>}
     {event.closed
       ? <p className="status">Las confirmaciones para este evento ya están cerradas.{answered && ` Tu respuesta registrada: ${data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount})` : 'no podrás asistir'}.`}</p>
       : <button className="primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cerrar confirmación' : answered ? 'Cambiar mi respuesta' : 'Confirmar asistencia'} <Heart size={16}/></button>}
     {answered && !showForm && !event.closed && <p className="status">Ya respondiste: {data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount} ${data.rsvp.guestCount === 1 ? 'persona' : 'personas'})` : 'no podrás asistir'}. ¡Gracias!</p>}
     {showForm && !event.closed && renderRsvpForm('rsvp', 'primary')}
-    <p className="closing">Gracias por ser parte de nuestra historia <Heart size={14}/></p>
-  </section>);
+    {!showForm && <p className="closing">Gracias por ser parte de nuestra historia <Heart size={14}/></p>}
+  </section>, 'letter-open-page');
 }

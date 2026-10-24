@@ -15,7 +15,31 @@ const wrap = (sql, args = []) => ({
 });
 class FakeRewriter { // HTMLRewriter no existe en Node: se emula lo mínimo para ejercitar la ruta
   constructor() { this.h = []; } on(sel, handler) { this.h.push([sel, handler]); return this; }
-  transform(res) { return res; }
+  async transform(res) {
+    let html = await res.text();
+    for (const [selector, handler] of this.h) {
+      if (selector === 'title') {
+        html = html.replace(/<title>(.*?)<\/title>/i, (_match, content) => {
+          let replacement = content;
+          handler.element({ setInnerContent: value => { replacement = String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); } });
+          return `<title>${replacement}</title>`;
+        });
+      } else if (selector === 'meta[name="description"]') {
+        html = html.replace(/<meta\s+name="description"\s+content="([^"]*)"\s*\/?>/i, (tag, content) => {
+          let replacement = content;
+          handler.element({ setAttribute: (_name, value) => { replacement = value; } });
+          return tag.replace(content, replacement);
+        });
+      } else if (selector === 'head') {
+        html = html.replace(/<head[^>]*>/i, tag => {
+          let appended = '';
+          handler.element({ append: value => { appended += value; } });
+          return tag + appended;
+        });
+      }
+    }
+    return new Response(html, { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
 }
 globalThis.HTMLRewriter = FakeRewriter;
 const env = {
@@ -70,6 +94,33 @@ await t('publicar evento', async () => {
   const r = await call('PUT', `/api/admin/events/${eventId}`, { title: 'Baby shower', baby_name: 'Mateo', parent_names: 'Laura y Daniel', event_date: '2027-05-24', event_time: '16:00', venue: 'Jardín', address: 'Medellín', status: 'published' });
   assert.equal(r.status, 200);
 });
+let crawlerLink, crawlerGuestId;
+await t('la vista previa no marca una invitación como abierta', async () => {
+  const r = await call('POST', `/api/admin/events/${eventId}/guests`, { name: 'Vista previa', max_guests: 1 });
+  crawlerLink = r.data.link; crawlerGuestId = r.data.id;
+  const preview = await worker.fetch(new Request(crawlerLink), env);
+  assert.equal(preview.status, 200);
+  assert.equal(db.prepare('SELECT opened_at FROM guests WHERE id=?').get(crawlerGuestId).opened_at, null);
+});
+await t('la primera consulta de una invitación registra su apertura una sola vez', async () => {
+  const opened = await call('GET', `/api/invitation?i=${new URL(crawlerLink).searchParams.get('i')}`, null, { auth: false });
+  assert.equal(opened.status, 200);
+  const firstOpenedAt = db.prepare('SELECT opened_at FROM guests WHERE id=?').get(crawlerGuestId).opened_at;
+  assert.ok(firstOpenedAt);
+  await call('GET', `/api/invitation?i=${new URL(crawlerLink).searchParams.get('i')}`, null, { auth: false });
+  assert.equal(db.prepare('SELECT opened_at FROM guests WHERE id=?').get(crawlerGuestId).opened_at, firstOpenedAt);
+  const admin = await call('GET', `/api/admin/events/${eventId}`);
+  assert.equal(admin.data.guests.find(g => g.id === crawlerGuestId).opened_at, firstOpenedAt);
+  assert.equal(admin.data.guests.find(g => g.id === guestId).opened_at, null);
+});
+await t('una invitación en borrador no se registra como abierta', async () => {
+  const draft = await call('POST', '/api/admin/events', { title: 'Borrador', event_type: 'baby_shower', status: 'draft' });
+  const guest = await call('POST', `/api/admin/events/${draft.data.id}/guests`, { name: 'Invitado borrador', max_guests: 1 });
+  const id = guest.data.id;
+  const result = await call('GET', `/api/invitation?i=${new URL(guest.data.link).searchParams.get('i')}`, null, { auth: false });
+  assert.equal(result.status, 404);
+  assert.equal(db.prepare('SELECT opened_at FROM guests WHERE id=?').get(id).opened_at, null);
+});
 await t('GET /api/invitation devuelve evento e invitado', async () => {
   const r = await call('GET', `/api/invitation?i=${token()}`, null, { auth: false });
   assert.equal(r.status, 200); assert.equal(r.data.guest.name, 'Ana Pérez'); assert.equal(r.data.guest.maxGuests, 3); assert.equal(r.data.event.babyName, 'Mateo'); assert.equal(r.data.rsvp, null);
@@ -114,6 +165,14 @@ await t('crear evento de revelación y publicar', async () => {
   rlink = g.data.link; rg = g.data.id;
   const inv = await call('GET', `/api/invitation?i=${rtoken()}`, null, { auth: false });
   assert.equal(inv.data.event.type, 'gender_reveal');
+});
+await t('Open Graph de revelación solo presenta título, descripción vacía, imagen y URL', async () => {
+  const res = await worker.fetch(new Request(`${ORIGIN}/?i=${rtoken()}`), env);
+  const html = await res.text();
+  assert.match(html, /<title>Laura y Daniel: Revelación<\/title>/);
+  assert.match(html, /property="og:description" content=""/);
+  assert.match(html, new RegExp(`property="og:url" content="${ORIGIN.replaceAll('.', '\\.')}\\/\\?i=${rtoken()}"`));
+  assert.match(html, new RegExp(`property="og:image" content="${ORIGIN.replaceAll('.', '\\.')}\\/og\\.png"`));
 });
 const A = {}, B = {}, C = {};
 const idA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', idB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', idC = 'cccccccc-cccc-cccc-cccc-cccccccccccc';

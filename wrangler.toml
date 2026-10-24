@@ -11,7 +11,7 @@ run_worker_first = true
 [[d1_databases]]
 binding = "DB"
 database_name = "carta-sellada-db"
-database_id = "REEMPLAZAR_CON_ID_DE_D1"
+database_id = "88809827-2580-419b-9fec-da1101dd857b"
 
 # Variables (no secretas). La clave pública de Turnstile es opcional.
 # [vars]
