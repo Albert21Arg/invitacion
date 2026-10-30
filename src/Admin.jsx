@@ -5,6 +5,7 @@ import Turnstile from './Turnstile.jsx';
 const STATUS_LABEL = { draft: 'Borrador', published: 'Publicado', closed: 'Cerrado' };
 const TYPE_LABEL = { baby_shower: 'Baby shower', gender_reveal: 'Revelación' };
 const EMPTY_EVENT = { event_type: 'baby_shower', title: '', baby_name: '', parent_names: '', event_date: '', event_time: '', venue: '', address: '', message: '', status: 'draft' };
+const POLL_TITLE = '¿Qué crees que será?';
 
 function waLink(phone, text) {
   let d = String(phone || '').replace(/\D/g, '');
@@ -63,6 +64,50 @@ function EventForm({ initial, onSave, onCancel }) {
     {error && <p className="admin-error" role="alert">{error}</p>}
     <div className="admin-actions"><button className="primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button><button type="button" className="ghost" onClick={onCancel}>Cancelar</button></div>
   </form>;
+}
+
+function PollForm({ onSave, onCancel }) {
+  const [title, setTitle] = useState(POLL_TITLE);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  async function submit(e) {
+    e.preventDefault(); setBusy(true); setError('');
+    try { await onSave(title); } catch (err) { setError(err.message); setBusy(false); }
+  }
+  return <form className="admin-card admin-form" onSubmit={submit}>
+    <h2>Nueva votación abierta</h2>
+    <p className="admin-note">Una página independiente, sin datos de invitación. Todos usarán el mismo enlace y podrán votar una vez desde cada dispositivo.</p>
+    <label>Pregunta<input value={title} onChange={e => setTitle(e.target.value)} maxLength={120} required/></label>
+    <p className="admin-note">Opciones: Niño 💙 o Niña 💗. La votación quedará abierta al crearla.</p>
+    {error && <p className="admin-error" role="alert">{error}</p>}
+    <div className="admin-actions"><button className="primary" disabled={busy}>{busy ? 'Creando…' : 'Crear votación'}</button><button type="button" className="ghost" onClick={onCancel}>Cancelar</button></div>
+  </form>;
+}
+
+function PollCard({ poll, onChange, onError }) {
+  const url = `${location.origin}/?poll=${encodeURIComponent(poll.slug)}`;
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(url); }
+    catch { prompt('Copia el enlace de votación:', url); }
+  }
+  async function setStatus(status) {
+    try { await api(`/api/admin/polls/${poll.id}`, { method: 'PUT', body: { status } }); onChange(); }
+    catch (err) { onError(err.message); }
+  }
+  async function remove() {
+    if (!confirm('¿Eliminar esta votación y todos sus votos? No se puede deshacer.')) return;
+    try { await api(`/api/admin/polls/${poll.id}`, { method: 'DELETE' }); onChange(); }
+    catch (err) { onError(err.message); }
+  }
+  return <div className="admin-card">
+    <div className="admin-title-row"><strong>{poll.title}</strong><span className={`pill ${poll.status === 'open' ? 'pill-published' : 'pill-closed'}`}>{poll.status === 'open' ? 'Abierta' : 'Cerrada'}</span></div>
+    <div className="standalone-poll-tally"><span>💙 Niño: <strong>{poll.boy_votes || 0}</strong></span><span>💗 Niña: <strong>{poll.girl_votes || 0}</strong></span><span>Total: <strong>{poll.votes}</strong></span></div>
+    <div className="admin-actions">
+      <button className="ghost" onClick={copyLink}>Copiar enlace compartido</button>
+      {poll.status === 'open' ? <button className="ghost" onClick={() => setStatus('closed')}>Cerrar votación</button> : <button className="ghost" onClick={() => setStatus('open')}>Reabrir votación</button>}
+      <button className="ghost danger" onClick={remove}>Eliminar</button>
+    </div>
+  </div>;
 }
 
 /* ---------- Panel de revelación: votos en vivo y control ---------- */
@@ -183,13 +228,15 @@ export default function Admin() {
   const [auth, setAuth] = useState({ loading: true, email: null, needsSetup: false });
   const [view, setView] = useState({ name: 'list' });
   const [events, setEvents] = useState(null); const [error, setError] = useState('');
+  const [polls, setPolls] = useState(null);
 
   useEffect(() => {
     api('/api/admin/me').then(r => { setCsrf(r.csrfToken); setAuth({ loading: false, email: r.email }); })
       .catch(async () => { const s = await api('/api/admin/status').catch(() => ({})); setAuth({ loading: false, email: null, needsSetup: !!s.needsSetup }); });
   }, []);
   const loadEvents = useCallback(() => api('/api/admin/events').then(r => setEvents(r.events)).catch(e => { if (e.status === 401) setAuth({ loading: false, email: null }); else setError(e.message); }), []);
-  useEffect(() => { if (auth.email) loadEvents(); }, [auth.email, loadEvents]);
+  const loadPolls = useCallback(() => api('/api/admin/polls').then(r => setPolls(r.polls)).catch(e => { if (e.status === 401) setAuth({ loading: false, email: null }); else setError(e.message); }), []);
+  useEffect(() => { if (auth.email) { loadEvents(); loadPolls(); } }, [auth.email, loadEvents, loadPolls]);
 
   async function logout() { try { await api('/api/admin/logout', { method: 'POST' }); } catch {} setCsrf(''); setEvents(null); setView({ name: 'list' }); setAuth({ loading: false, email: null }); }
   if (auth.loading) return <p className="admin-note" style={{ padding: 24 }}>Cargando…</p>;
@@ -201,13 +248,19 @@ export default function Admin() {
     else { id = (await api('/api/admin/events', { method: 'POST', body: f })).id; }
     await loadEvents(); setView({ name: 'detail', id });
   }
+  async function createPoll(title) {
+    await api('/api/admin/polls', { method: 'POST', body: { title } });
+    await loadPolls(); setView({ name: 'list' });
+  }
 
   return <div className="admin">
     <header className="admin-bar"><strong>Carta Sellada</strong><span>{auth.email}</span><button className="link" onClick={logout}>Salir</button></header>
     <div className="admin-body">
       {view.name === 'list' && <>
-        <div className="admin-title-row"><h1 className="admin-h1 left">Eventos</h1><button className="primary" onClick={() => setView({ name: 'new' })}>+ Nuevo</button></div>
+        <div className="admin-title-row"><h1 className="admin-h1 left">Votaciones abiertas</h1><button className="primary" onClick={() => setView({ name: 'poll-new' })}>+ Nueva votación</button></div>
         {error && <p className="admin-error">{error}</p>}
+        {!polls ? <p className="admin-note">Cargando votaciones…</p> : polls.length ? polls.map(poll => <PollCard key={poll.id} poll={poll} onChange={loadPolls} onError={setError}/>) : <div className="admin-card"><p className="admin-note">Todavía no tienes votaciones abiertas.</p></div>}
+        <div className="admin-title-row admin-events-heading"><h2 className="admin-h1 left">Eventos</h2><button className="primary" onClick={() => setView({ name: 'new' })}>+ Nuevo evento</button></div>
         {!events ? <p className="admin-note">Cargando…</p> : events.length === 0 ? <div className="admin-card"><p className="admin-note">Todavía no tienes eventos. Crea el primero para empezar a generar invitaciones.</p></div> :
           events.map(e => <button key={e.id} className="admin-card event-row" onClick={() => setView({ name: 'detail', id: e.id })}>
             <div className="admin-title-row"><strong>{e.title}</strong><span className={`pill pill-${e.status}`}>{STATUS_LABEL[e.status]}</span></div>
@@ -215,6 +268,7 @@ export default function Admin() {
           </button>)}
       </>}
       {view.name === 'new' && <EventForm onSave={saveEvent} onCancel={() => setView({ name: 'list' })}/>}
+      {view.name === 'poll-new' && <PollForm onSave={createPoll} onCancel={() => setView({ name: 'list' })}/>}
       {view.name === 'edit' && <EventForm initial={view.event} onSave={saveEvent} onCancel={() => setView({ name: 'detail', id: view.event.id })}/>}
       {view.name === 'detail' && <EventDetail key={view.id} id={view.id} onBack={() => { loadEvents(); setView({ name: 'list' }); }}
         onEdit={async () => { const r = await api(`/api/admin/events/${view.id}`); setView({ name: 'edit', event: r.event }); }}

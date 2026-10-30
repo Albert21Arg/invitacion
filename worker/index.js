@@ -175,6 +175,74 @@ async function voteCounts(env, eventId) {
   for (const r of results) c[r.choice] = r.n;
   return c;
 }
+const MINT_LEAF_INTERVAL_SECONDS = 30;
+const MINT_LEAF_CYCLE_SECONDS = 3600;
+const MINT_LEAF_CYCLE_SIZE = MINT_LEAF_CYCLE_SECONDS / MINT_LEAF_INTERVAL_SECONDS;
+const MINT_LEAF_FALL_WINDOW_SECONDS = 10;
+
+async function ensureMintLeafCycle(env, scopeKey) {
+  await env.DB.prepare('INSERT OR IGNORE INTO mint_leaf_cycles (scope_key, cycle_started_at) VALUES (?, ?)')
+    .bind(scopeKey, Math.floor(Date.now() / 1000)).run();
+}
+
+async function mintLeafState(env, scopeKey, counts) {
+  const now = Math.floor(Date.now() / 1000);
+  await ensureMintLeafCycle(env, scopeKey);
+  let cycle = await env.DB.prepare('SELECT cycle_id, cycle_started_at FROM mint_leaf_cycles WHERE scope_key = ?')
+    .bind(scopeKey).first();
+  const elapsed = now - cycle.cycle_started_at;
+  if (elapsed >= MINT_LEAF_CYCLE_SECONDS) {
+    const completedCycles = Math.floor(elapsed / MINT_LEAF_CYCLE_SECONDS);
+    const nextCycleId = cycle.cycle_id + completedCycles;
+    const nextStart = cycle.cycle_started_at + completedCycles * MINT_LEAF_CYCLE_SECONDS;
+    await env.DB.batch([
+      env.DB.prepare(`INSERT OR IGNORE INTO mint_leaf_falls
+        (id, scope_key, cycle_id, leaf_count, boy_count, girl_count, started_at)
+        SELECT ?, scope_key, cycle_id, MIN(?, CAST((? - cycle_started_at) / ? AS INTEGER)), ?, ?, ?
+        FROM mint_leaf_cycles WHERE scope_key = ? AND cycle_id = ? AND cycle_started_at = ?
+          AND (? - cycle_started_at) >= ?`)
+        .bind(uuid(), MINT_LEAF_CYCLE_SIZE, now, MINT_LEAF_INTERVAL_SECONDS, counts.boy, counts.girl, now,
+          scopeKey, cycle.cycle_id, cycle.cycle_started_at, now, MINT_LEAF_CYCLE_SECONDS),
+      env.DB.prepare(`UPDATE mint_leaf_cycles SET cycle_id = ?, cycle_started_at = ?
+        WHERE scope_key = ? AND cycle_id = ? AND cycle_started_at = ?`)
+        .bind(nextCycleId, nextStart, scopeKey, cycle.cycle_id, cycle.cycle_started_at)
+    ]);
+    cycle = await env.DB.prepare('SELECT cycle_id, cycle_started_at FROM mint_leaf_cycles WHERE scope_key = ?')
+      .bind(scopeKey).first();
+  }
+
+  await env.DB.prepare('DELETE FROM mint_leaf_falls WHERE scope_key = ? AND started_at < ?')
+    .bind(scopeKey, now - 60).run();
+  const { results: falls } = await env.DB.prepare(`SELECT id, leaf_count AS leafCount, boy_count AS boyCount,
+      girl_count AS girlCount, started_at AS startedAt
+    FROM mint_leaf_falls WHERE scope_key = ? AND started_at >= ? ORDER BY started_at`)
+    .bind(scopeKey, now - MINT_LEAF_FALL_WINDOW_SECONDS).all();
+  return {
+    cycleId: cycle.cycle_id,
+    leafCount: Math.min(MINT_LEAF_CYCLE_SIZE, Math.floor(Math.max(0, now - cycle.cycle_started_at) / MINT_LEAF_INTERVAL_SECONDS)),
+    falls
+  };
+}
+
+async function resetMintLeafCycle(env, scopeKey, counts) {
+  const now = Math.floor(Date.now() / 1000);
+  await ensureMintLeafCycle(env, scopeKey);
+  const cycle = await env.DB.prepare('SELECT cycle_id, cycle_started_at FROM mint_leaf_cycles WHERE scope_key = ?')
+    .bind(scopeKey).first();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT OR IGNORE INTO mint_leaf_falls
+      (id, scope_key, cycle_id, leaf_count, boy_count, girl_count, started_at)
+      SELECT ?, scope_key, cycle_id, MIN(?, CAST((? - cycle_started_at) / ? AS INTEGER)), ?, ?, ?
+      FROM mint_leaf_cycles WHERE scope_key = ? AND cycle_id = ? AND cycle_started_at = ?
+        AND (? - cycle_started_at) >= ?`)
+      .bind(uuid(), MINT_LEAF_CYCLE_SIZE, now, MINT_LEAF_INTERVAL_SECONDS, counts.boy, counts.girl, now,
+        scopeKey, cycle.cycle_id, cycle.cycle_started_at, now, MINT_LEAF_INTERVAL_SECONDS),
+    env.DB.prepare(`UPDATE mint_leaf_cycles SET cycle_id = cycle_id + 1, cycle_started_at = ?
+      WHERE scope_key = ? AND cycle_id = ? AND cycle_started_at = ?`)
+      .bind(now, scopeKey, cycle.cycle_id, cycle.cycle_started_at)
+  ]);
+}
+
 async function voteState(env, ctx, ids) {
   const counts = await voteCounts(env, ctx.event_id);
   const { results: guestVoteResults } = await env.DB.prepare('SELECT choice, COUNT(*) AS n FROM votes WHERE guest_id = ? GROUP BY choice').bind(ctx.guest_id).all();
@@ -188,7 +256,8 @@ async function voteState(env, ctx, ids) {
   const revealed = !!ctx.revealed_at;
   return { counts, total: counts.boy + counts.girl, guestCounts, myVotes, myVote: myVotes.at(-1) || null,
     guestVoteCount, guestVoteLimit: ctx.max_guests, voteOpen: ctx.vote_status === 'open' && !revealed,
-    revealed, result: revealed ? ctx.reveal_result : null };
+    revealed, result: revealed ? ctx.reveal_result : null,
+    mintLeaves: await mintLeafState(env, `event:${ctx.event_id}`, counts) };
 }
 async function publicRevealState(env, req, url) {
   const token = clean(url.searchParams.get('i'), 200);
@@ -220,7 +289,45 @@ async function publicVote(env, req, url) {
     const latest = await state();
     return json({ error: `Esta invitación ya usó sus ${before.guestVoteLimit} voto${before.guestVoteLimit > 1 ? 's' : ''}.`, ...latest }, 403, headers);
   }
+  await resetMintLeafCycle(env, `event:${ctx.event_id}`, await voteCounts(env, ctx.event_id));
   return json({ ok: true, ...(await state()) }, 200, headers);
+}
+
+async function standalonePollState(env, poll, ids) {
+  const { results } = await env.DB.prepare('SELECT choice, COUNT(*) AS n FROM standalone_poll_votes WHERE poll_id = ? GROUP BY choice').bind(poll.id).all();
+  const counts = { boy: 0, girl: 0 };
+  for (const row of results) counts[row.choice] = row.n;
+  const mine = await env.DB.prepare(`SELECT choice FROM standalone_poll_votes WHERE poll_id = ?1
+    AND (cookie_hash = ?2 OR (?3 IS NOT NULL AND local_hash = ?3))`).bind(poll.id, ids.cookieHash, ids.localHash).first();
+  const total = counts.boy + counts.girl;
+  return { poll: { title: poll.title, status: poll.status }, counts, total, myVote: mine?.choice || null, voteOpen: poll.status === 'open',
+    mintLeaves: await mintLeafState(env, `poll:${poll.id}`, counts) };
+}
+async function publicPollState(env, req, url, slug) {
+  const poll = await env.DB.prepare('SELECT id, title, status FROM standalone_polls WHERE slug = ?').bind(slug).first();
+  if (!poll) return json({ error: 'No encontramos esta votación.' }, 404);
+  const ids = await deviceIds(req, url);
+  return json(await standalonePollState(env, poll, ids), 200, ids.setCookie ? { 'set-cookie': ids.setCookie } : {});
+}
+async function publicPollVote(env, req, url, slug) {
+  if (!(await rateLimit(env, `poll-vote:${clientIp(req)}`, 120, 600))) return json({ error: 'Demasiados intentos. Intenta más tarde.' }, 429);
+  let body; try { body = await req.json(); } catch { return json({ error: 'JSON inválido.' }, 400); }
+  const choice = body.choice === 'boy' ? 'boy' : body.choice === 'girl' ? 'girl' : '';
+  if (!choice) return json({ error: 'Elige una opción para votar.' }, 400);
+  const poll = await env.DB.prepare('SELECT id, title, status FROM standalone_polls WHERE slug = ?').bind(slug).first();
+  if (!poll) return json({ error: 'No encontramos esta votación.' }, 404);
+  const ids = await deviceIds(req, url);
+  const headers = ids.setCookie ? { 'set-cookie': ids.setCookie } : {};
+  if (poll.status !== 'open') return json({ error: 'La votación está cerrada.', ...(await standalonePollState(env, poll, ids)) }, 403, headers);
+  const inserted = await env.DB.prepare(`INSERT OR IGNORE INTO standalone_poll_votes (id, poll_id, choice, cookie_hash, local_hash)
+    SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (
+      SELECT 1 FROM standalone_poll_votes WHERE poll_id = ?
+        AND (cookie_hash = ? OR (? IS NOT NULL AND local_hash = ?))
+    )`).bind(uuid(), poll.id, choice, ids.cookieHash, ids.localHash, poll.id, ids.cookieHash, ids.localHash, ids.localHash).run();
+  const state = await standalonePollState(env, poll, ids);
+  if (!inserted.meta.changes) return json({ error: 'Este dispositivo ya registró su voto.', ...state }, 409, headers);
+  await resetMintLeafCycle(env, `poll:${poll.id}`, state.counts);
+  return json({ ok: true, ...(await standalonePollState(env, poll, ids)) }, 200, headers);
 }
 
 /* ---------- API de administración ---------- */
@@ -279,6 +386,37 @@ async function handleAdmin(env, req, url, path) {
         (SELECT COUNT(*) FROM rsvps r JOIN guests g ON g.id = r.guest_id WHERE g.event_id = e.id) AS responses
       FROM events e ORDER BY e.created_at DESC`).all();
     return json({ events: results });
+  }
+  if (path === '/polls' && method === 'GET') {
+    const { results } = await env.DB.prepare(`SELECT p.id, p.slug, p.title, p.status, p.created_at,
+        COUNT(v.id) AS votes,
+        SUM(CASE WHEN v.choice = 'boy' THEN 1 ELSE 0 END) AS boy_votes,
+        SUM(CASE WHEN v.choice = 'girl' THEN 1 ELSE 0 END) AS girl_votes
+      FROM standalone_polls p LEFT JOIN standalone_poll_votes v ON v.poll_id = p.id
+      GROUP BY p.id ORDER BY p.created_at DESC`).all();
+    return json({ polls: results });
+  }
+  if (path === '/polls' && method === 'POST') {
+    const b = await body(); if (!b) return json({ error: 'JSON inválido.' }, 400);
+    const title = clean(b.title, 120);
+    if (!title) return json({ error: 'Escribe la pregunta de la votación.' }, 400);
+    const id = uuid(), slug = `${slugify(title)}-${randomToken(6).toLowerCase().replace(/[^a-z0-9]/g, 'x')}`;
+    await env.DB.prepare('INSERT INTO standalone_polls (id, slug, title) VALUES (?, ?, ?)').bind(id, slug, title).run();
+    return json({ ok: true, id, slug }, 201);
+  }
+  if ((m = path.match(/^\/polls\/([\w-]+)$/))) {
+    const poll = await env.DB.prepare('SELECT id FROM standalone_polls WHERE id = ?').bind(m[1]).first();
+    if (!poll) return json({ error: 'Votación no encontrada.' }, 404);
+    if (method === 'DELETE') {
+      await env.DB.prepare('DELETE FROM standalone_polls WHERE id = ?').bind(m[1]).run();
+      return json({ ok: true });
+    }
+    if (method === 'PUT') {
+      const b = await body(); if (!b) return json({ error: 'JSON inválido.' }, 400);
+      if (!['open', 'closed'].includes(b.status)) return json({ error: 'Estado inválido.' }, 400);
+      await env.DB.prepare('UPDATE standalone_polls SET status = ? WHERE id = ?').bind(b.status, m[1]).run();
+      return json({ ok: true });
+    }
   }
   if (path === '/events' && method === 'POST') {
     const b = await body(); if (!b) return json({ error: 'JSON inválido.' }, 400);
@@ -373,6 +511,25 @@ async function pageWithOpenGraph(env, req, url) {
   headers.set('X-Robots-Tag', 'noindex, nofollow');
   headers.set('Referrer-Policy', 'no-referrer');
   headers.set('Cache-Control', 'private, no-store');
+  const pollSlug = clean(url.searchParams.get('poll'), 100);
+  if (!token && pollSlug) {
+    const poll = await env.DB.prepare('SELECT title FROM standalone_polls WHERE slug = ?').bind(pollSlug).first();
+    if (poll) {
+      const title = `Invitación a votar · ${poll.title}`;
+      const description = '';
+      const image = `${url.origin}/og.png`;
+      const tags = `<meta property="og:type" content="website"/><meta property="og:locale" content="es_CO"/><meta property="og:site_name" content="Invitación"/>
+<meta property="og:title" content="${esc(title)}"/><meta property="og:description" content=""/>
+<meta property="og:url" content="${esc(`${url.origin}/?poll=${pollSlug}`)}"/><meta property="og:image" content="${esc(image)}"/>
+<meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>`;
+      return new HTMLRewriter()
+        .on('title', { element(e) { e.setInnerContent(title); } })
+        .on('meta[name="description"]', { element(e) { e.setAttribute('content', description); } })
+        .on('head', { element(e) { e.append(tags, { html: true }); } })
+        .transform(new Response(res.body, { status: res.status, headers }));
+    }
+  }
   if (!token) return new Response(res.body, { status: res.status, headers });
   let row = null;
   try {
@@ -420,6 +577,9 @@ export default {
       if (path === '/api/rsvp' && request.method === 'POST') return publicRsvp(env, request);
       if (path === '/api/reveal' && request.method === 'GET') return publicRevealState(env, request, url);
       if (path === '/api/vote' && request.method === 'POST') return publicVote(env, request, url);
+      const pollMatch = path.match(/^\/api\/polls\/([\w-]+)(\/votes)?$/);
+      if (pollMatch && !pollMatch[2] && request.method === 'GET') return publicPollState(env, request, url, pollMatch[1]);
+      if (pollMatch && pollMatch[2] && request.method === 'POST') return publicPollVote(env, request, url, pollMatch[1]);
       if (path.startsWith('/api/admin/')) return await handleAdmin(env, request, url, path.slice('/api/admin'.length));
       if (path.startsWith('/api/')) return json({ error: 'Ruta no encontrada.' }, 404);
       if (path === '/' && request.method === 'GET') return secure(await pageWithOpenGraph(env, request, url));

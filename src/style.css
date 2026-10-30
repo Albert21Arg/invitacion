@@ -47,6 +47,37 @@
 /* Admin: panel de revelación */
 .reveal-admin .tally-row{margin:6px 0}.reveal-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.btn-boy{border-color:#8fb0cf;color:#3d6488}.btn-girl{border-color:#dba0b1;color:#9a4562}
 .type-pill{background:#e6ecf3;color:#47607a}
+.admin-events-heading{margin-top:30px}
+.standalone-poll-tally{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;color:#626b58;font-size:12px}
+.standalone-poll-tally strong{color:#39463a}
+
+/* ---------- Votación pública compartida ---------- */
+.page.poll-page{justify-content:center;gap:12px;overflow-y:auto;padding:20px 16px;background:radial-gradient(ellipse at 50% 10%,#fffdf6 0%,#f3edde 58%,#e1dccd 100%)}
+.standalone-poll{width:min(100%,430px);padding:clamp(22px,7vw,36px);border:1px solid #ded5c1;border-radius:24px;background:#fffaf0e8;box-shadow:0 18px 48px #47513a18;text-align:center}
+.poll-heart{display:grid;place-items:center;width:38px;height:38px;margin:0 auto 12px;border-radius:50%;background:#77896b;color:#fffaf0}
+.poll-overline{margin:0 0 10px;color:#7b8c70;font-size:11px;font-weight:600;letter-spacing:.2em}
+.standalone-poll h1{font-size:clamp(34px,10vw,48px);line-height:1.05}
+.poll-subtitle{margin:10px 0 20px;color:#6d7260;font:italic 19px 'Cormorant Garamond',serif}
+.standalone-poll-options{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.standalone-poll .voting-tree{width:calc(100% + 32px);height:clamp(440px,74svh,680px);margin:8px -16px 0}
+.standalone-poll .reveal-results-summary{width:100%;margin:0 auto}
+.standalone-poll .reveal-total{margin:10px auto}
+.poll-option{min-height:76px;border:1px solid;border-radius:17px;font:600 19px 'DM Sans',sans-serif;cursor:pointer;transition:transform .18s,box-shadow .18s}
+.poll-option:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 8px 18px #52644820}
+.poll-option:disabled{opacity:.65}
+.poll-option-boy{border-color:#b5d2e2;background:#e3f0f4;color:#376889}
+.poll-option-girl{border-color:#eac0c8;background:#f9e7e8;color:#9e596b}
+.standalone-results{display:grid;gap:16px;margin-top:24px;text-align:left}
+.standalone-result-label{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;color:#505849;font-size:14px}
+.standalone-result-label strong{font-size:13px}
+.standalone-result-bar{height:12px;overflow:hidden;border-radius:99px;background:#e8e1d0}
+.standalone-result-bar span{display:block;height:100%;border-radius:99px;transition:width .4s ease}
+.result-boy .standalone-result-bar span{background:#7fa6c9}
+.result-girl .standalone-result-bar span{background:#dc8fa4}
+.poll-total{margin:17px 0 0;color:#626b58;font-size:13px;font-weight:600}
+.poll-device-note,.poll-message{margin:11px 0 0;color:#7d7a69;font-size:12px;line-height:1.5}
+.poll-voted{color:#4b6444}
+@media(max-width:360px){.standalone-poll{padding:22px 16px}.poll-option{min-height:65px;font-size:17px}}
 
 /* ---------- Flujo de revelación: invitación, voto y resultados ---------- */
 .page.gender-page{min-height:100svh;overflow-x:hidden;overflow-y:auto;padding:0;background:#e7e2d4}
@@ -120,6 +151,7 @@
 @media(min-width:600px){.gender-shell{min-height: min(900px,100svh);margin:16px auto;border:1px solid #dfd9c8;border-radius:26px}.page.gender-page{min-height:100svh;padding:1px 18px;background:radial-gradient(ellipse at 50% 10%,#f8f4e9,#e4e0d4)}}
 @media(max-height:740px){.gender-shell{padding-top:11px}.reveal-progress{margin:12px 0 8px}.reveal-overline{margin:4px 0 7px}.reveal-screen h1{font-size:42px}.invitation-art{width:min(100%,220px)}.vote-art{width:min(100%,225px)}}
 @media(prefers-reduced-motion:reduce){.reveal-team,.reveal-primary{transition:none!important}}
+@media(prefers-reduced-motion:reduce){.falling-vote-leaf{display:none}}
 
 /* Reference-matched mobile invitation, vote, results and thank-you screens. */
 .page.gender-page{min-height:100svh;overflow-x:hidden;overflow-y:auto;padding:0;background:#d8d3c5}
@@ -206,6 +238,14 @@
 .tree-leaf{stroke:#fff8e9;stroke-width:2;transform-box:fill-box;transform-origin:center;animation:leaf-appear .35s ease-out both,leaf-sway 2.2s ease-in-out var(--sway-delay) infinite alternate}
 .leaf-boy{fill:#4b9acb}
 .leaf-girl{fill:#df7a96}
+.tree-white-leaf path{fill:#a8e6cf;stroke:#668f7d;stroke-width:3;filter:drop-shadow(0 1px 1px #39463a55)}
+.tree-white-leaf-falling>g{animation:mint-leaf-fall 3.2s linear var(--fall-delay,0s) both}
+@keyframes mint-leaf-fall{0%{transform:translate(0,0)}24%{transform:translate(9px,45px)}58%{transform:translate(-7px,115px)}100%{transform:translate(5px,var(--drop-distance))}}
+.tree-leaf-pending{animation:none!important;opacity:0!important}
+.falling-vote-leaf{position:fixed;top:0;left:0;z-index:1000;width:34px;height:34px;overflow:visible;pointer-events:none;filter:drop-shadow(0 2px 2px #39463a55)}
+.falling-vote-leaf path{fill:inherit;stroke:#fff8e9;stroke-width:1.5}
+.vote-tree-preview{width:100%;margin:10px auto 0}
+.vote-tree-preview .voting-tree{width:100%;height:clamp(200px,30svh,270px);margin:0}
 @keyframes leaf-appear{from{opacity:0}to{opacity:1}}
 .reveal-results-summary{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:8px;width:100%;margin:0 auto 6px}
 .reveal-results-summary .legend-team{grid-template-columns:14px minmax(0,1fr);gap:4px 7px;min-width:0;font-size:16px;color:#292e26}
@@ -271,7 +311,7 @@
 .vote-bottom-heart{padding-top:4px}
 .reveal-results{padding-top:0}
 .reveal-results-content{flex:1 1 auto;min-height:0;margin-top:2px}
-.reveal-results-content .voting-tree{flex:1 1 auto;min-height:180px;height:clamp(200px,54svh,460px);max-height:460px}
+.reveal-results-content .voting-tree{flex:1 1 auto;min-height:260px;height:clamp(320px,72svh,620px);max-height:620px}
 .reveal-results-summary{flex-shrink:0}
 .reveal-total,.reveal-note,.results-vote-button{flex-shrink:0}
 .results-vote-button{margin-top:2px}
@@ -310,7 +350,7 @@
 @media(max-height:620px){
   .reveal-screen h1{font-size:clamp(32px,8vw,40px)}
   .reveal-results h1{font-size:34px}
-  .reveal-results-content .voting-tree{min-height:140px;height:44svh}
+  .reveal-results-content .voting-tree{min-height:210px;height:62svh}
   .invitation-art{height:21svh;min-height:110px}
   .vote-art,.voted-bear-frame{height:24svh;min-height:125px}
   .thanks-art{height:23svh;min-height:125px}
@@ -327,7 +367,7 @@
   .attendance-back{margin-top:auto}
   .thanks-overline{margin-bottom:4px}
 }
-@media(prefers-reduced-motion:reduce){.reveal-team,.reveal-primary{transition:none!important}.tree-leaf{animation:none}}
+@media(prefers-reduced-motion:reduce){.reveal-team,.reveal-primary{transition:none!important}.tree-leaf{animation:none}.tree-white-leaf-falling>g{animation:none}}
 
 /* Mármol claro y tipografía con más contraste y presencia. */
 :root{color:#292e26;background-color:#e8e7e1}
@@ -378,7 +418,68 @@
 .admin-note{line-height:1.55}
 .admin-error{line-height:1.45}
 footer{font-size:11px;font-weight:600}
+.admin-entry-link{color:#68745f;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+footer .admin-entry-link{margin-left:12px}
+.cover-admin-entry{margin-top:10px}
+.flow-admin-entry{position:relative;z-index:2;align-self:center;flex:none;margin:2px auto 5px}
 .guest-statuses{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+
+/* Baby shower: invitación, ubicación, asistencia y agradecimiento. */
+.baby-page .baby-shell{gap:8px}
+.baby-progress{position:relative;z-index:1;display:flex;justify-content:center;gap:8px;width:100%;padding:8px 0 5px}
+.baby-progress-step{display:flex;align-items:center;gap:5px;color:#757967;font-size:11px;white-space:nowrap}
+.baby-progress-step span{display:grid;place-items:center;width:22px;height:22px;border:1px solid #c8c6ad;border-radius:50%;background:#fffaf0;color:#59684d;font-size:11px;font-weight:700}
+.baby-progress-step.active{color:#354a38;font-weight:700}
+.baby-progress-step.active span,.baby-progress-step.complete span{border-color:#627958;background:#627958;color:#fff}
+.baby-screen{justify-content:center;gap:4px;padding:4px 0 8px}
+.baby-screen h1{max-width:100%;color:#344c39;font-size:clamp(36px,10vw,44px);line-height:.98}
+.baby-screen h1 em{color:#77866b;font-size:.72em;font-weight:400}
+.baby-screen .thanks-overline{margin:0 0 4px}
+.baby-invitation-art{margin:0 auto;color:#75866a;font-size:clamp(54px,16vw,72px);line-height:1.05}
+.baby-greeting,.baby-name,.baby-invitation-message{max-width:320px;margin:3px auto 0;color:#454b3e;font:italic 18px/1.25 'Cormorant Garamond',serif}
+.baby-name strong{color:#52674b;font-size:1.15em}
+.baby-invitation-message{font-size:16px}
+.baby-event-details{display:grid;gap:6px;width:100%;max-width:320px;margin:5px auto;padding:8px 12px;border-top:1px solid #d8d2c0;border-bottom:1px solid #d8d2c0;text-align:left}
+.baby-event-details p{display:flex;align-items:center;gap:10px;margin:0;color:#3f4b3b;font-size:14px;font-weight:600}
+.baby-event-details svg{width:18px;height:18px;flex:none;color:#71846a}
+.baby-invitation .reveal-countdown{max-width:320px;margin:4px auto}
+.baby-invitation .countdown-part{min-height:46px}
+.baby-previous-answer{margin:2px auto;color:#52674b;font-size:13px;font-weight:600}
+.baby-next{width:min(100%,280px);margin:5px auto 0}
+.baby-change-answer,.baby-back{margin:0 auto;padding:5px 10px}
+.baby-location h1{margin:2px 0 8px}
+.baby-map-card{width:100%;max-width:340px;margin:4px auto 8px;padding:14px;border:1px solid #ded5c1;border-radius:18px;background:#fffaf0dd;box-shadow:0 8px 22px #47513a12}
+.baby-map-art{display:grid;place-items:center;height:clamp(120px,26svh,190px);margin-bottom:11px;border-radius:12px;background-color:#e9eadf;background-image:linear-gradient(32deg,transparent 46%,#d3d8c7 47% 50%,transparent 51%),linear-gradient(145deg,transparent 43%,#d3d8c7 44% 47%,transparent 48%),linear-gradient(90deg,transparent 48%,#fffaf0 49% 53%,transparent 54%);color:#617b58}
+.baby-map-card h2{margin:4px 0;color:#344c39;font:600 25px 'Cormorant Garamond',serif}
+.baby-map-card p{margin:4px auto 10px;color:#4f5748;font-size:15px;line-height:1.35}
+.baby-map-link{margin:6px auto 0;text-decoration:none}
+.baby-attendance{justify-content:flex-start;padding-top:4px}
+.baby-attendance h1{margin-bottom:5px}
+.baby-rsvp{width:100%;max-width:350px;margin:4px auto 0;padding:12px 14px}
+.baby-rsvp h3{margin:0 0 9px;font:italic 21px 'Cormorant Garamond',serif}
+.baby-rsvp label{margin:7px 0;font-size:13px}
+.baby-rsvp input,.baby-rsvp textarea{padding:8px;font-size:14px}
+.baby-rsvp textarea{height:58px;min-height:58px;resize:none}
+.baby-rsvp .choices{gap:6px}
+.baby-rsvp .choices button{min-height:42px;padding:7px 4px;font-size:13px}
+.baby-rsvp .counter{gap:14px;margin-top:4px}
+.baby-rsvp .counter button{width:34px;height:34px}
+.baby-rsvp .turnstile{margin:5px 0;min-height:0}
+.baby-rsvp>.reveal-primary{width:100%;min-height:44px;padding:10px 16px}
+.baby-thanks .baby-thanks-art{margin:4px auto;color:#75866a;font-size:clamp(78px,24vw,112px);line-height:1.1}
+.baby-thanks .thanks-copy{max-width:300px}
+@media(max-height:700px){
+  .baby-page .baby-shell{gap:3px}
+  .baby-progress{padding:4px 0 2px}
+  .baby-screen{gap:2px;padding:2px 0 4px}
+  .baby-invitation-art{font-size:54px}
+  .baby-event-details{gap:4px;margin:3px auto;padding:5px 10px}
+  .baby-invitation .countdown-part{min-height:40px}
+  .baby-map-art{height:110px}
+  .baby-rsvp{padding:8px 10px}
+  .baby-rsvp label{margin:4px 0}
+  .baby-rsvp textarea{height:48px;min-height:48px}
+}
 
 @media(max-width:599px){
   .page.letter-open-page{height:100svh;min-height:100svh;overflow:hidden;padding:0 12px}

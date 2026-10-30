@@ -38,7 +38,7 @@ export default function Invitation() {
   const [siteKey, setSiteKey] = useState(null);
   const [opened, setOpened] = useState(false);
   const [revealScreen, setRevealScreen] = useState('invitation');
-  const [showForm, setShowForm] = useState(false);
+  const [babyScreen, setBabyScreen] = useState('invitation');
   const [answer, setAnswer] = useState('yes');
   const [guests, setGuests] = useState(1);
   const [message, setMessage] = useState('');
@@ -65,11 +65,12 @@ export default function Invitation() {
       setStatus({ text: '¡Gracias! Tu respuesta quedó registrada. Puedes volver a este enlace para cambiarla.', ok: true });
       setData(d => ({ ...d, rsvp: { attendance: answer, guestCount: answer === 'yes' ? guests : 0, message } }));
       if (data.event.type === 'gender_reveal') setRevealScreen('thanks');
+      else setBabyScreen('thanks');
     } catch (err) { setStatus({ text: err.message, ok: false }); }
     finally { setBusy(false); }
   }
 
-  const frame = (children, pageClass = '') => <main className={`page ${pageClass}`.trim()}><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/></footer></main>;
+  const frame = (children, pageClass = '') => <main className={`page ${pageClass}`.trim()}><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/><a className="admin-entry-link" href="/admin">Administración</a></footer></main>;
 
   if (loadError) return frame(<section className="cover"><div className="mini-seal">♡</div><h1>Ups</h1><p className="intro">{loadError}</p><p className="micro">Revisa que el enlace esté completo o pide uno nuevo a quien te invitó.</p></section>, 'cover-page');
   if (!data) return frame(<section className="cover"><div className="mini-seal">♡</div><p className="tap">Preparando tu carta…</p></section>, 'cover-page');
@@ -97,7 +98,12 @@ export default function Invitation() {
     <h1>{guest.name ? guest.name.split(' ')[0] : 'Invitación'}</h1><p className="tap">Toca para abrir</p>
     <button className="primary" onClick={() => setOpened(true)}>Abrir mi carta <ArrowDown size={16}/></button>
     <p className="micro">Con cariño, para alguien especial</p>
+    <a className="admin-entry-link cover-admin-entry" href="/admin">Acceso de administración</a>
   </section>, 'cover-page');
+
+  const babyHasLocation = !!(event.venue || event.address);
+  const babySteps = ['Invitación', ...(babyHasLocation ? ['Ubicación'] : []), 'Confirmación'];
+  const babyScreenStep = babyScreen === 'location' ? 'Ubicación' : babyScreen === 'attendance' ? 'Confirmación' : 'Invitación';
 
   if (reveal) return <main className="page gender-page">
     <div className="gender-shell">
@@ -160,32 +166,77 @@ export default function Invitation() {
         <p className="thanks-copy thanks-closing">Nos vemos pronto para descubrirlo juntos.</p>
         <button className="reveal-text-button" type="button" onClick={() => setRevealScreen('results')}>Ver resultados <ArrowRight size={14}/></button>
       </section>}
+      <a className="admin-entry-link flow-admin-entry" href="/admin">Administración</a>
     </div>
   </main>;
 
-  return frame(<section className={`letter-content ${showForm ? 'rsvp-open' : ''}`}>
-    {!showForm && <>
-      <div className="mini-seal">♡</div>
-      {reveal ? <><p className="eyebrow">ES HORA DE DESCUBRIRLO</p><h1>¿Niño<br/><em>o niña?</em></h1></>
-        : <><p className="eyebrow">UNA NUEVA HISTORIA COMIENZA</p><h1>Un pequeño amor<br/><em>está por llegar</em></h1></>}
-      <p className="intro">{event.message || (reveal
-        ? `${event.parentNames || 'Nosotros'} queremos que seas parte del momento en que descubriremos si nuestro bebé es niño o niña.`
-        : `${event.parentNames || 'Nosotros'} queremos compartir contigo uno de los momentos más especiales de nuestras vidas.`)}</p>
-      <div className="bear" aria-hidden="true">{reveal ? '💙💗' : '🧸'}</div>
-      {event.babyName && <><p className="event-title">{reveal ? 'Descubramos juntos el secreto de' : 'Celebremos la llegada de'}</p><h2>{event.babyName}</h2></>}
-      <div className="details">
-        {event.date && <p><CalendarDays/> <span>{formatDate(event.date)}</span></p>}
-        {event.time && <p><Clock/> <span>{formatTime(event.time)}</span></p>}
-        {(event.venue || event.address) && <p><MapPin/> <span>{event.venue}<small>{event.address}</small>{maps && <small><a className="maplink" href={maps} target="_blank" rel="noopener noreferrer">Ver en el mapa</a></small>}</span></p>}
+  const goToAttendance = () => setBabyScreen('attendance');
+  const goToNextStep = () => setBabyScreen(babyHasLocation ? 'location' : 'attendance');
+  if (babyScreen === 'thanks') return <main className="page gender-page baby-page">
+    <div className="gender-shell baby-shell">
+      <img className="reveal-floral floral-top-left" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
+      <img className="reveal-floral floral-top-right" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
+      <section className="reveal-screen reveal-thanks baby-screen baby-thanks" aria-labelledby="baby-thanks-title">
+        <p className="thanks-overline">UN MOMENTO ESPECIAL</p>
+        <h1 id="baby-thanks-title">¡Gracias<br/><em>por confirmar!</em></h1>
+        <span className="tiny-heart" aria-hidden="true">♥</span>
+        <div className="baby-thanks-art" aria-hidden="true">🧸</div>
+        <p className="thanks-copy">{data.rsvp?.attendance === 'yes' ? '¡Nos alegra mucho que nos acompañes!' : 'Gracias por contarnos. Valoramos mucho tu respuesta.'}</p>
+        <span className="tiny-heart thanks-heart" aria-hidden="true">♥</span>
+        <p className="thanks-copy thanks-closing">Gracias por ser parte de este momento tan especial.</p>
+        <button className="reveal-text-button" type="button" onClick={() => setBabyScreen('invitation')}>Volver a la invitación <ArrowRight size={14}/></button>
+      </section>
+    </div>
+  </main>;
+
+  return <main className="page gender-page baby-page">
+    <div className="gender-shell baby-shell">
+      <img className="reveal-floral floral-top-left" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
+      <img className="reveal-floral floral-top-right" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
+      <div className="baby-progress" aria-label={`Paso ${babySteps.indexOf(babyScreenStep) + 1} de ${babySteps.length}: ${babyScreenStep}`}>
+        {babySteps.map((step, index) => <div className={`baby-progress-step ${step === babyScreenStep ? 'active' : ''} ${babySteps.indexOf(babyScreenStep) > index ? 'complete' : ''}`} key={step}>
+          <span>{babySteps.indexOf(babyScreenStep) > index ? '✓' : index + 1}</span>{step}
+        </div>)}
       </div>
-      {reveal && !data.demo && <Vote token={token}/>}
-      {reveal && data.demo && <p className="status">Aquí aparecerá la votación en vivo cuando abras un enlace individual.</p>}
-    </>}
-    {event.closed
-      ? <p className="status">Las confirmaciones para este evento ya están cerradas.{answered && ` Tu respuesta registrada: ${data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount})` : 'no podrás asistir'}.`}</p>
-      : <button className="primary" onClick={() => setShowForm(!showForm)}>{showForm ? 'Cerrar confirmación' : answered ? 'Cambiar mi respuesta' : 'Confirmar asistencia'} <Heart size={16}/></button>}
-    {answered && !showForm && !event.closed && <p className="status">Ya respondiste: {data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount} ${data.rsvp.guestCount === 1 ? 'persona' : 'personas'})` : 'no podrás asistir'}. ¡Gracias!</p>}
-    {showForm && !event.closed && renderRsvpForm('rsvp', 'primary')}
-    {!showForm && <p className="closing">Gracias por ser parte de nuestra historia <Heart size={14}/></p>}
-  </section>, 'letter-open-page');
+      {babyScreen === 'invitation' && <section className="reveal-screen baby-screen baby-invitation" aria-labelledby="baby-invitation-title">
+        <p className="thanks-overline">UNA NUEVA HISTORIA COMIENZA</p>
+        <h1 id="baby-invitation-title">Baby shower<br/><em>un gran amor está por llegar</em></h1>
+        <span className="tiny-heart" aria-hidden="true">♥</span>
+        <div className="baby-invitation-art" aria-hidden="true">🧸</div>
+        <p className="baby-greeting">{guestName ? `${guestName}, ` : ''}{event.parentNames ? `${event.parentNames} te invitan a celebrar` : 'Te invitamos a celebrar'}</p>
+        {event.babyName && <p className="baby-name">la llegada de <strong>{event.babyName}</strong></p>}
+        {event.message && <p className="baby-invitation-message">{event.message}</p>}
+        <div className="baby-event-details">
+          {event.date && <p><CalendarDays/><span>{formatDate(event.date)}</span></p>}
+          {event.time && <p><Clock/><span>{formatTime(event.time)}</span></p>}
+        </div>
+        {event.date && <EventCountdown date={event.date} time={event.time}/>}
+        {answered && <p className="baby-previous-answer">Tu respuesta: {data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount})` : 'no podrás asistir'}.</p>}
+        <button className="reveal-primary baby-next" type="button" onClick={goToNextStep}>{babyHasLocation ? 'Ver ubicación' : answered ? 'Cambiar mi respuesta' : 'Confirmar asistencia'} <ArrowRight size={16}/></button>
+        {answered && !event.closed && <button className="reveal-text-button baby-change-answer" type="button" onClick={goToAttendance}>Cambiar mi respuesta</button>}
+      </section>}
+      {babyScreen === 'location' && <section className="reveal-screen baby-screen baby-location" aria-labelledby="baby-location-title">
+        <p className="thanks-overline">EL ENCUENTRO</p>
+        <h1 id="baby-location-title">¿Cómo<br/><em>llegar?</em></h1>
+        <span className="tiny-heart" aria-hidden="true">♥</span>
+        <div className="baby-map-card">
+          <div className="baby-map-art" aria-hidden="true"><MapPin size={54}/></div>
+          <h2>{event.venue || 'Ubicación del evento'}</h2>
+          {event.address && <p>{event.address}</p>}
+          {maps && <a className="reveal-primary baby-map-link" href={maps} target="_blank" rel="noopener noreferrer"><MapPin size={16}/> Abrir en Google Maps</a>}
+        </div>
+        <button className="reveal-primary baby-next" type="button" onClick={goToAttendance}>{event.closed ? 'Ver confirmación' : 'Confirmar asistencia'} <ArrowRight size={16}/></button>
+        <button className="reveal-text-button baby-back" type="button" onClick={() => setBabyScreen('invitation')}>Volver a la invitación</button>
+      </section>}
+      {babyScreen === 'attendance' && <section className="reveal-screen baby-screen baby-attendance" aria-labelledby="baby-attendance-title">
+        <p className="thanks-overline">UN ÚLTIMO PASO</p>
+        <h1 id="baby-attendance-title">¿Nos<br/><em>acompañas?</em></h1>
+        {event.closed
+          ? <p className="reveal-note">Las confirmaciones para este evento ya están cerradas.{answered && ` Tu respuesta registrada: ${data.rsvp.attendance === 'yes' ? `asistirás (${data.rsvp.guestCount})` : 'no podrás asistir'}.`}</p>
+          : renderRsvpForm('rsvp reveal-rsvp attendance-rsvp baby-rsvp', 'reveal-primary')}
+        <button className="reveal-text-button baby-back" type="button" onClick={() => setBabyScreen(babyHasLocation ? 'location' : 'invitation')}>Volver</button>
+      </section>}
+      <a className="admin-entry-link flow-admin-entry" href="/admin">Administración</a>
+    </div>
+  </main>;
 }
