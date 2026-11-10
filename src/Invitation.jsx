@@ -32,11 +32,16 @@ function EventCountdown({ date, time }) {
 }
 
 export default function Invitation() {
-  const token = new URLSearchParams(location.search).get('i');
-  const [data, setData] = useState(token ? null : DEMO);
+  const params = new URLSearchParams(location.search);
+  const token = params.get('i');
+  const previewReveal = params.get('preview') === 'revelacion';
+  const [data, setData] = useState(token ? null : previewReveal
+    ? { ...DEMO, event: { ...DEMO.event, type: 'gender_reveal' } }
+    : DEMO);
   const [loadError, setLoadError] = useState('');
   const [siteKey, setSiteKey] = useState(null);
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(previewReveal);
+  const [opening, setOpening] = useState(false);
   const [revealScreen, setRevealScreen] = useState('invitation');
   const [babyScreen, setBabyScreen] = useState('invitation');
   const [answer, setAnswer] = useState('yes');
@@ -55,6 +60,16 @@ export default function Invitation() {
     }).catch(e => setLoadError(e.message));
   }, [token]);
 
+  function openInvitation() {
+    if (opening) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setOpened(true);
+      return;
+    }
+    setOpening(true);
+    window.setTimeout(() => setOpened(true), 800);
+  }
+
   async function submitRSVP(e) {
     e.preventDefault();
     if (data.demo) { setStatus({ text: 'Modo de demostración: abre un enlace individual para confirmar.', ok: false }); return; }
@@ -70,7 +85,7 @@ export default function Invitation() {
     finally { setBusy(false); }
   }
 
-  const frame = (children, pageClass = '') => <main className={`page ${pageClass}`.trim()}><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/><a className="admin-entry-link" href="/admin">Administración</a></footer></main>;
+  const frame = (children, pageClass = '') => <main className={`page ${pageClass}`.trim()}><div className="sprig sprig-one">✦</div><div className="sprig sprig-two">❧</div>{children}<footer>HECHO CON AMOR <Sparkles size={12}/></footer></main>;
 
   if (loadError) return frame(<section className="cover"><div className="mini-seal">♡</div><h1>Ups</h1><p className="intro">{loadError}</p><p className="micro">Revisa que el enlace esté completo o pide uno nuevo a quien te invitó.</p></section>, 'cover-page');
   if (!data) return frame(<section className="cover"><div className="mini-seal">♡</div><p className="tap">Preparando tu carta…</p></section>, 'cover-page');
@@ -92,21 +107,27 @@ export default function Invitation() {
 
   if (!opened) return frame(<section className="cover" aria-label="Invitación cerrada">
     <p className="eyebrow">{reveal ? 'UN SECRETO POR DESCUBRIR' : 'UNA SORPRESA ESPECIAL'}</p>
-    <div className="envelope" onClick={() => setOpened(true)} role="button" tabIndex="0" onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setOpened(true)} aria-label="Abrir invitación">
-      <div className="envelope-back"></div><div className="letter-peek">{reveal ? <><span>Hay un secreto</span><span>por revelar…</span></> : <><span>Hay una alegría</span><span>en camino…</span></>}<Heart size={17}/></div><div className="envelope-flap"></div><div className="envelope-front"></div><div className="ribbon"></div><div className="wax">♡</div>
-    </div>
+    <button className="envelope" type="button" onClick={openInvitation} aria-label="Abrir invitación">
+      <div className="envelope-back"></div><div className="letter-peek">{reveal ? <><span>Hay un secreto</span><span>por revelar…</span></> : <><span>Hay una alegría</span><span>en camino…</span></>}<Heart size={17}/></div>
+      <div className="envelope-babies" aria-hidden="true">
+        <span className="envelope-sparkle sparkle-one">✦</span>
+        <span className="envelope-sparkle sparkle-two">✧</span>
+        <span className="envelope-sparkle sparkle-three">✦</span>
+        <img className="envelope-baby-pair" src="/baby-pair.png" alt="" />
+      </div>
+      <div className="envelope-flap"></div><div className="envelope-front"></div><div className="ribbon"></div><div className="wax">♡</div>
+    </button>
     <h1>{guest.name ? guest.name.split(' ')[0] : 'Invitación'}</h1><p className="tap">Toca para abrir</p>
-    <button className="primary" onClick={() => setOpened(true)}>Abrir mi carta <ArrowDown size={16}/></button>
+    <button className="primary" onClick={openInvitation}>Abrir mi carta <ArrowDown size={16}/></button>
     <p className="micro">Con cariño, para alguien especial</p>
-    <a className="admin-entry-link cover-admin-entry" href="/admin">Acceso de administración</a>
-  </section>, 'cover-page');
+  </section>, `cover-page ${opening ? 'cover-opening' : ''}`);
 
   const babyHasLocation = !!(event.venue || event.address);
   const babySteps = ['Invitación', ...(babyHasLocation ? ['Ubicación'] : []), 'Confirmación'];
   const babyScreenStep = babyScreen === 'location' ? 'Ubicación' : babyScreen === 'attendance' ? 'Confirmación' : 'Invitación';
 
-  if (reveal) return <main className="page gender-page">
-    <div className="gender-shell">
+  if (reveal) return <main className={`page gender-page reveal-page ${revealScreen === 'invitation' ? 'reveal-cover-screen' : ''}`}>
+    <div className="gender-shell reveal-shell">
       <img className="reveal-floral floral-top-left" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
       <img className="reveal-floral floral-top-right" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
       <img className="reveal-floral floral-bottom-left" src="/reveal-botanical.svg" alt="" aria-hidden="true"/>
@@ -117,6 +138,13 @@ export default function Invitation() {
         <img className="reveal-art invitation-art" src="/reveal-bears.png" alt="Ositos con globos azules y rosados"/>
         <h2 className="invitation-question">¿Niño o Niña?</h2>
         <p className="reveal-copy">{event.message || 'Acompáñanos a descubrirlo'}</p>
+        <aside className="reveal-team-gifts" aria-label="Qué traer según tu equipo">
+          <p>¡Trae algo para celebrar!</p>
+          <div>
+            <span className="gift-team-boy"><strong>Team niño</strong> · pañales</span>
+            <span className="gift-team-girl"><strong>Team niña</strong> · pañitos</span>
+          </div>
+        </aside>
         <div className="reveal-event-details">
           {event.date && <p><CalendarDays/><span>{formatDate(event.date)}</span></p>}
           {event.time && <p><Clock/><span>{formatTime(event.time)}</span></p>}
@@ -166,7 +194,6 @@ export default function Invitation() {
         <p className="thanks-copy thanks-closing">Nos vemos pronto para descubrirlo juntos.</p>
         <button className="reveal-text-button" type="button" onClick={() => setRevealScreen('results')}>Ver resultados <ArrowRight size={14}/></button>
       </section>}
-      <a className="admin-entry-link flow-admin-entry" href="/admin">Administración</a>
     </div>
   </main>;
 
@@ -236,7 +263,6 @@ export default function Invitation() {
           : renderRsvpForm('rsvp reveal-rsvp attendance-rsvp baby-rsvp', 'reveal-primary')}
         <button className="reveal-text-button baby-back" type="button" onClick={() => setBabyScreen(babyHasLocation ? 'location' : 'invitation')}>Volver</button>
       </section>}
-      <a className="admin-entry-link flow-admin-entry" href="/admin">Administración</a>
     </div>
   </main>;
 }

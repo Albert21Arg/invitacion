@@ -105,7 +105,7 @@ await t('crear invitado devuelve enlace; BD guarda solo el hash', async () => {
 const token = () => new URL(link).searchParams.get('i');
 await t('invitación de evento en borrador: 404', async () => assert.equal((await call('GET', `/api/invitation?i=${token()}`, null, { auth: false })).status, 404));
 await t('publicar evento', async () => {
-  const r = await call('PUT', `/api/admin/events/${eventId}`, { title: 'Baby shower', baby_name: 'Mateo', parent_names: 'Laura y Daniel', event_date: '2027-05-24', event_time: '16:00', venue: 'Jardín', address: 'Medellín', status: 'published' });
+  const r = await call('PUT', `/api/admin/events/${eventId}`, { title: 'Baby shower', baby_name: 'Mateo', parent_names: 'Laura y Daniel', event_date: '2027-05-24', event_time: '16:00', venue: 'Jardín', address: 'Medellín', message: 'Acompáñanos en este día tan especial.', status: 'published' });
   assert.equal(r.status, 200);
 });
 let crawlerLink, crawlerGuestId;
@@ -137,7 +137,7 @@ await t('una invitación en borrador no se registra como abierta', async () => {
 });
 await t('GET /api/invitation devuelve evento e invitado', async () => {
   const r = await call('GET', `/api/invitation?i=${token()}`, null, { auth: false });
-  assert.equal(r.status, 200); assert.equal(r.data.guest.name, 'Ana Pérez'); assert.equal(r.data.guest.maxGuests, 3); assert.equal(r.data.event.babyName, 'Mateo'); assert.equal(r.data.rsvp, null);
+  assert.equal(r.status, 200); assert.equal(r.data.guest.name, 'Ana Pérez'); assert.equal(r.data.guest.maxGuests, 3); assert.equal(r.data.event.babyName, 'Mateo'); assert.equal(r.data.event.message, 'Acompáñanos en este día tan especial.'); assert.equal(r.data.rsvp, null);
 });
 await t('token inválido: 404', async () => assert.equal((await call('GET', '/api/invitation?i=nope', null, { auth: false })).status, 404));
 await t('RSVP: excede cupos', async () => assert.equal((await call('POST', '/api/rsvp', { token: token(), attendance: 'yes', guestCount: 4 }, { auth: false })).status, 400));
@@ -156,6 +156,9 @@ await t('panel muestra respuestas', async () => {
 await t('Open Graph: ruta / con token no falla', async () => {
   const res = await worker.fetch(new Request(`${ORIGIN}/?i=${token()}`), env);
   assert.equal(res.status, 200); assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow');
+  const html = await res.text();
+  assert.match(html, new RegExp(`property="og:image" content="${ORIGIN.replaceAll('.', '\\.')}\\/og\\.png"`));
+  assert.match(html, /property="og:image:type" content="image\/png"/);
 });
 await t('regenerar enlace invalida el anterior', async () => {
   const old = token();
@@ -188,7 +191,8 @@ await t('la vista previa del enlace compartido invita a votar sin datos personal
   const response = await worker.fetch(new Request(`${ORIGIN}/?poll=${poll.slug}`), env);
   const html = await response.text();
   assert.match(html, /<title>Invitación a votar · ¿Qué crees que será\?<\/title>/);
-  assert.match(html, /property="og:description" content=""/);
+  assert.match(html, /property="og:description" content="Vota y sé parte de esta dulce sorpresa\."/);
+  assert.match(html, new RegExp(`property="og:image" content="${ORIGIN.replaceAll('.', '\\.')}\\/og-voting\\.png"`));
   assert.match(html, new RegExp(`property="og:url" content="${ORIGIN.replaceAll('.', '\\.')}\\/\\?poll=${poll.slug}"`));
   assert.doesNotMatch(html, /og:title[^>]*Laura|og:title[^>]*Ana/);
 });
@@ -198,6 +202,8 @@ await t('el enlace público de votación funciona sin invitación y genera cooki
   assert.equal(result.data.poll.title, '¿Qué crees que será?');
   assert.equal(result.data.myVote, null);
   assert.equal(result.data.voteOpen, true);
+  assert.equal(result.data.revealed, false);
+  assert.equal(result.data.result, null);
   assert.equal(result.data.mintLeaves.leafCount, 0);
   assert.equal(result.data.mintLeaves.cycleId, 0);
   assert.match(result.res.headers.get('set-cookie'), /cs_device=.*HttpOnly/);
@@ -243,6 +249,19 @@ await t('cerrar votación independiente bloquea nuevos votos, conserva resultado
   await call('PUT', `/api/admin/polls/${poll.id}`, { status: 'open' });
   assert.equal((await call('GET', `/api/polls/${poll.slug}`, null, pollDevice('66666666-7777-8888-9999-aaaaaaaaaaaa'))).data.voteOpen, true);
 });
+await t('anunciar resultado independiente lo publica y cierra la votación hasta ocultarlo', async () => {
+  const announced = await call('PUT', `/api/admin/polls/${poll.id}`, { action: 'reveal', result: 'girl' });
+  assert.equal(announced.status, 200);
+  const publicState = await call('GET', `/api/polls/${poll.slug}`, null, pollDevice('77777777-8888-9999-aaaa-bbbbbbbbbbbb'));
+  assert.equal(publicState.data.revealed, true);
+  assert.equal(publicState.data.result, 'girl');
+  assert.equal(publicState.data.voteOpen, false);
+  assert.equal((await call('PUT', `/api/admin/polls/${poll.id}`, { status: 'open' })).status, 400);
+  await call('PUT', `/api/admin/polls/${poll.id}`, { action: 'hide' });
+  const hidden = await call('GET', `/api/polls/${poll.slug}`, null, pollDevice('88888888-9999-aaaa-bbbb-cccccccccccc'));
+  assert.equal(hidden.data.revealed, false);
+  assert.equal(hidden.data.result, null);
+});
 // ---------- Revelación de sexo: votación por equipo ----------
 let rev, rlink, rg;
 const rtoken = () => new URL(rlink).searchParams.get('i');
@@ -256,13 +275,14 @@ await t('crear evento de revelación y publicar', async () => {
   const inv = await call('GET', `/api/invitation?i=${rtoken()}`, null, { auth: false });
   assert.equal(inv.data.event.type, 'gender_reveal');
 });
-await t('Open Graph de revelación solo presenta título, descripción vacía, imagen y URL', async () => {
+await t('Open Graph de revelación presenta título, descripción, imagen y URL', async () => {
   const res = await worker.fetch(new Request(`${ORIGIN}/?i=${rtoken()}`), env);
   const html = await res.text();
   assert.match(html, /<title>Laura y Daniel: Revelación<\/title>/);
-  assert.match(html, /property="og:description" content=""/);
+  assert.match(html, /property="og:description" content="Vota por tu equipo y acompáñanos a descubrir el secreto\."/);
   assert.match(html, new RegExp(`property="og:url" content="${ORIGIN.replaceAll('.', '\\.')}\\/\\?i=${rtoken()}"`));
-  assert.match(html, new RegExp(`property="og:image" content="${ORIGIN.replaceAll('.', '\\.')}\\/og\\.png"`));
+  assert.match(html, new RegExp(`property="og:image" content="${ORIGIN.replaceAll('.', '\\.')}\\/og-reveal\\.png"`));
+  assert.match(html, /property="og:image:alt" content="Invitación para descubrir si será niño o niña"/);
 });
 const A = {}, B = {}, C = {};
 const idA = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', idB = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', idC = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
@@ -328,6 +348,9 @@ await t('evento baby_shower no tiene votación', async () => {
 await t('panel: detalle muestra votos; cerrar votación bloquea', async () => {
   const d = await call('GET', `/api/admin/events/${rev}`); assert.deepEqual(d.data.votes, { boy: 1, girl: 2 });
   assert.equal((await call('POST', `/api/admin/events/${rev}/reveal`, { action: 'close' })).status, 200);
+  const closed = await call('GET', `/api/reveal?i=${rtoken()}`, null, dev(A, idA));
+  assert.equal(closed.data.voteOpen, false); assert.equal(closed.data.revealed, false); assert.equal(closed.data.result, null);
+  assert.deepEqual(closed.data.counts, { boy: 1, girl: 2 });
   const g2 = await call('POST', `/api/admin/events/${rev}/guests`, { name: 'Otra', max_guests: 3 });
   const r = await call('POST', '/api/vote', { token: new URL(g2.data.link).searchParams.get('i'), choice: 'boy' }, dev({}, idC)); assert.equal(r.status, 403);
   assert.equal((await call('POST', `/api/admin/events/${rev}/reveal`, { action: 'open' })).status, 200);

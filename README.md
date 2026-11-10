@@ -48,7 +48,7 @@ Con ambos definidos, se exige en el RSVP y en el login. Sin ellos, solo actúa e
 - Eventos en `draft` no abren; eventos `closed` se ven pero rechazan confirmaciones.
 
 ## Open Graph y WhatsApp
-Al abrir `/?i=TOKEN`, el Worker inyecta `og:title`, `og:description`, `og:url` y `og:image` según el evento (sin incluir el nombre del invitado). En eventos de revelación, la tarjeta solo incluye la imagen, los anfitriones con “Revelación” y el enlace. La imagen es estática: `public/og.png` (1200×630); reemplázala por la tuya. Una imagen distinta por evento requeriría generar PNG en el Worker o subirlas a R2 (pendiente). WhatsApp cachea las vistas previas: si cambias datos, puede tardar en actualizarse.
+Al abrir `/?i=TOKEN`, el Worker inyecta título, descripción, URL e imagen Open Graph según el tipo de evento, sin incluir el nombre del invitado. Las tarjetas estáticas PNG son horizontales de 1200×630: `public/og.png` para baby shower, `public/og-reveal.png` para revelación y `public/og-voting.png` para votaciones compartidas. Sus composiciones vectoriales están en `public/og-baby.svg`, `public/og-reveal.svg` y `public/og-voting.svg`. WhatsApp puede guardar en caché la vista previa; después de cambiarla, puede tardar en mostrar la nueva versión.
 
 ## Pendiente / decisiones tuyas
 - Fijar versiones de dependencias (hoy están en `latest`) y generar el lockfile con `npm install`.

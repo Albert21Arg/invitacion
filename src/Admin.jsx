@@ -59,7 +59,7 @@ function EventForm({ initial, onSave, onCancel }) {
     <div className="row2"><label>Fecha<input type="date" value={f.event_date} onChange={set('event_date')}/></label><label>Hora<input type="time" value={f.event_time} onChange={set('event_time')}/></label></div>
     <label>Lugar<input value={f.venue} onChange={set('venue')} maxLength={160}/></label>
     <label>Dirección<input value={f.address} onChange={set('address')} maxLength={240}/></label>
-    <label>Mensaje de la carta (opcional)<textarea rows="3" value={f.message} onChange={set('message')} maxLength={600} placeholder="Si lo dejas vacío se usa el texto por defecto."/></label>
+    <label>Mensaje de la carta (opcional)<textarea rows="3" value={f.message} onChange={set('message')} maxLength={600} placeholder="Este mensaje aparecerá en la carta. Si lo dejas vacío, se usa el texto por defecto."/></label>
     <label>Estado<select value={f.status} onChange={set('status')}><option value="draft">Borrador (las invitaciones no abren)</option><option value="published">Publicado</option><option value="closed">Cerrado (se ve, pero no recibe confirmaciones)</option></select></label>
     {error && <p className="admin-error" role="alert">{error}</p>}
     <div className="admin-actions"><button className="primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button><button type="button" className="ghost" onClick={onCancel}>Cancelar</button></div>
@@ -94,17 +94,29 @@ function PollCard({ poll, onChange, onError }) {
     try { await api(`/api/admin/polls/${poll.id}`, { method: 'PUT', body: { status } }); onChange(); }
     catch (err) { onError(err.message); }
   }
+  async function setResult(action, result) {
+    const message = action === 'reveal'
+      ? `¿Anunciar que el resultado es ${result === 'boy' ? 'NIÑO' : 'NIÑA'}? La votación se cerrará.`
+      : '¿Ocultar el resultado anunciado? La votación permanecerá cerrada.';
+    if (!confirm(message)) return;
+    try { await api(`/api/admin/polls/${poll.id}`, { method: 'PUT', body: { action, result } }); onChange(); }
+    catch (err) { onError(err.message); }
+  }
   async function remove() {
     if (!confirm('¿Eliminar esta votación y todos sus votos? No se puede deshacer.')) return;
     try { await api(`/api/admin/polls/${poll.id}`, { method: 'DELETE' }); onChange(); }
     catch (err) { onError(err.message); }
   }
+  const revealed = !!poll.revealed_at;
   return <div className="admin-card">
-    <div className="admin-title-row"><strong>{poll.title}</strong><span className={`pill ${poll.status === 'open' ? 'pill-published' : 'pill-closed'}`}>{poll.status === 'open' ? 'Abierta' : 'Cerrada'}</span></div>
+    <div className="admin-title-row"><strong>{poll.title}</strong><span className={`pill ${revealed ? 'pill-closed' : poll.status === 'open' ? 'pill-published' : 'pill-closed'}`}>{revealed ? `Resultado: ${poll.reveal_result === 'boy' ? 'niño' : 'niña'}` : poll.status === 'open' ? 'Abierta' : 'Cerrada'}</span></div>
     <div className="standalone-poll-tally"><span>💙 Niño: <strong>{poll.boy_votes || 0}</strong></span><span>💗 Niña: <strong>{poll.girl_votes || 0}</strong></span><span>Total: <strong>{poll.votes}</strong></span></div>
     <div className="admin-actions">
       <button className="ghost" onClick={copyLink}>Copiar enlace compartido</button>
-      {poll.status === 'open' ? <button className="ghost" onClick={() => setStatus('closed')}>Cerrar votación</button> : <button className="ghost" onClick={() => setStatus('open')}>Reabrir votación</button>}
+      {!revealed && <>{poll.status === 'open' ? <button className="ghost" onClick={() => setStatus('closed')}>Cerrar votación</button> : <button className="ghost" onClick={() => setStatus('open')}>Reabrir votación</button>}
+        <button className="ghost btn-boy" onClick={() => setResult('reveal', 'boy')}>Anunciar: es niño 💙</button>
+        <button className="ghost btn-girl" onClick={() => setResult('reveal', 'girl')}>Anunciar: es niña 💗</button></>}
+      {revealed && <button className="ghost" onClick={() => setResult('hide')}>Ocultar resultado</button>}
       <button className="ghost danger" onClick={remove}>Eliminar</button>
     </div>
   </div>;
@@ -122,7 +134,7 @@ function RevealPanel({ event, votes, onChange, onError }) {
   return <div className="admin-card reveal-admin">
     <div className="admin-title-row"><h3>Votación en vivo</h3><span className={`pill ${revealed ? 'pill-closed' : open ? 'pill-published' : 'pill-draft'}`}>{revealed ? `Revelado: ${event.reveal_result === 'boy' ? 'niño' : 'niña'}` : open ? 'Abierta' : 'Cerrada'}</span></div>
     {['boy', 'girl'].map(c => <div key={c} className="tally-row"><div className="tally-head"><span>{c === 'boy' ? 'Niño 💙' : 'Niña 💗'}</span><strong>{votes[c]}</strong></div><div className="bar"><div className={`bar-fill bar-${c}`} style={{ width: `${pct(votes[c])}%` }}/></div><small>{pct(votes[c])}%</small></div>)}
-    <p className="admin-note">{total} {total === 1 ? 'voto' : 'votos'} · se actualiza cada 4 s. Cada invitación permite un voto por persona, hasta el número de cupos.</p>
+    <p className="admin-note">{total} {total === 1 ? 'voto' : 'votos'} · se actualiza cada 4 s. Cada invitación permite un voto por persona, hasta el número de cupos. Cerrar la votación no revela el sexo.</p>
     <div className="reveal-actions">
       {!revealed && (open ? <button className="ghost" onClick={() => act('close')}>Cerrar votación</button> : <button className="ghost" onClick={() => act('open')}>Reabrir votación</button>)}
       {!revealed && <><button className="ghost btn-boy" onClick={() => act('reveal', 'boy')}>Revelar: es niño 💙</button><button className="ghost btn-girl" onClick={() => act('reveal', 'girl')}>Revelar: es niña 💗</button></>}

@@ -90,6 +90,10 @@ export default function PublicPoll() {
     <p className="poll-overline">INVITACIÓN A VOTAR</p>
     <h1>{state.poll.title}</h1>
     <p className="poll-subtitle">{state.myVote ? '¡Gracias por participar!' : state.voteOpen ? 'Elige tu opción' : 'La votación está cerrada'}</p>
+    {state.revealed && <div className={`standalone-poll-result reveal-${state.result}`} role="status">
+      <p>Resultado anunciado</p>
+      <strong>{state.result === 'boy' ? '¡Es un niño! 💙' : '¡Es una niña! 💗'}</strong>
+    </div>}
     {canVote && <div className="standalone-poll-options">
       <button className="poll-option poll-option-boy" type="button" disabled={busy} onClick={(event) => vote('boy', event)}>Niño 💙</button>
       <button className="poll-option poll-option-girl" type="button" disabled={busy} onClick={(event) => vote('girl', event)}>Niña 💗</button>

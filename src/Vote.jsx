@@ -420,7 +420,7 @@ export default function Vote({ token, view, onShowResults }) {
       <p className="reveal-big">{st.result === 'boy' ? '¡Es un niño!' : '¡Es una niña!'} {EMOJI[st.result]}</p>
     </div>}
     <VotingTree boyCount={st.counts.boy} girlCount={st.counts.girl} whiteLeaves={whiteLeaves} fallingWhiteLeaves={fallingWhiteLeaves} lastVote={flight?.team || myVote} lastVoteIndex={flight?.teamIndex} hideLastLeaf={!!flight} targetLeafRef={targetLeafRef} treeRef={treeRef}/>
-    <p className="reveal-note">{st.revealed ? 'El secreto ya fue revelado.' : st.voteOpen ? 'Los resultados se actualizan en tiempo real.' : 'La votación está cerrada.'}</p>
+    <p className="reveal-note">{st.revealed ? 'El secreto ya fue revelado.' : st.voteOpen ? 'Los votos se actualizan en tiempo real; la revelación oficial sigue pendiente.' : 'La votación está cerrada. La revelación oficial sigue pendiente.'}</p>
     {canVote && <button className="reveal-primary results-vote-button" type="button" onClick={onShowResults}>{myVotes.length ? 'Votar por otra persona' : 'Votar por tu equipo'}</button>}
   </div>;
 }

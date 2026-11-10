@@ -300,11 +300,13 @@ async function standalonePollState(env, poll, ids) {
   const mine = await env.DB.prepare(`SELECT choice FROM standalone_poll_votes WHERE poll_id = ?1
     AND (cookie_hash = ?2 OR (?3 IS NOT NULL AND local_hash = ?3))`).bind(poll.id, ids.cookieHash, ids.localHash).first();
   const total = counts.boy + counts.girl;
+  const revealed = !!poll.revealed_at;
   return { poll: { title: poll.title, status: poll.status }, counts, total, myVote: mine?.choice || null, voteOpen: poll.status === 'open',
+    revealed, result: revealed ? poll.reveal_result : null,
     mintLeaves: await mintLeafState(env, `poll:${poll.id}`, counts) };
 }
 async function publicPollState(env, req, url, slug) {
-  const poll = await env.DB.prepare('SELECT id, title, status FROM standalone_polls WHERE slug = ?').bind(slug).first();
+  const poll = await env.DB.prepare('SELECT id, title, status, reveal_result, revealed_at FROM standalone_polls WHERE slug = ?').bind(slug).first();
   if (!poll) return json({ error: 'No encontramos esta votación.' }, 404);
   const ids = await deviceIds(req, url);
   return json(await standalonePollState(env, poll, ids), 200, ids.setCookie ? { 'set-cookie': ids.setCookie } : {});
@@ -314,7 +316,7 @@ async function publicPollVote(env, req, url, slug) {
   let body; try { body = await req.json(); } catch { return json({ error: 'JSON inválido.' }, 400); }
   const choice = body.choice === 'boy' ? 'boy' : body.choice === 'girl' ? 'girl' : '';
   if (!choice) return json({ error: 'Elige una opción para votar.' }, 400);
-  const poll = await env.DB.prepare('SELECT id, title, status FROM standalone_polls WHERE slug = ?').bind(slug).first();
+  const poll = await env.DB.prepare('SELECT id, title, status, reveal_result, revealed_at FROM standalone_polls WHERE slug = ?').bind(slug).first();
   if (!poll) return json({ error: 'No encontramos esta votación.' }, 404);
   const ids = await deviceIds(req, url);
   const headers = ids.setCookie ? { 'set-cookie': ids.setCookie } : {};
@@ -388,7 +390,7 @@ async function handleAdmin(env, req, url, path) {
     return json({ events: results });
   }
   if (path === '/polls' && method === 'GET') {
-    const { results } = await env.DB.prepare(`SELECT p.id, p.slug, p.title, p.status, p.created_at,
+    const { results } = await env.DB.prepare(`SELECT p.id, p.slug, p.title, p.status, p.reveal_result, p.revealed_at, p.created_at,
         COUNT(v.id) AS votes,
         SUM(CASE WHEN v.choice = 'boy' THEN 1 ELSE 0 END) AS boy_votes,
         SUM(CASE WHEN v.choice = 'girl' THEN 1 ELSE 0 END) AS girl_votes
@@ -405,7 +407,7 @@ async function handleAdmin(env, req, url, path) {
     return json({ ok: true, id, slug }, 201);
   }
   if ((m = path.match(/^\/polls\/([\w-]+)$/))) {
-    const poll = await env.DB.prepare('SELECT id FROM standalone_polls WHERE id = ?').bind(m[1]).first();
+    const poll = await env.DB.prepare('SELECT id, status, revealed_at FROM standalone_polls WHERE id = ?').bind(m[1]).first();
     if (!poll) return json({ error: 'Votación no encontrada.' }, 404);
     if (method === 'DELETE') {
       await env.DB.prepare('DELETE FROM standalone_polls WHERE id = ?').bind(m[1]).run();
@@ -413,7 +415,17 @@ async function handleAdmin(env, req, url, path) {
     }
     if (method === 'PUT') {
       const b = await body(); if (!b) return json({ error: 'JSON inválido.' }, 400);
+      if (b.action === 'reveal') {
+        if (!['boy', 'girl'].includes(b.result)) return json({ error: 'Resultado inválido.' }, 400);
+        await env.DB.prepare("UPDATE standalone_polls SET reveal_result = ?, revealed_at = datetime('now'), status = 'closed' WHERE id = ?").bind(b.result, m[1]).run();
+        return json({ ok: true });
+      }
+      if (b.action === 'hide') {
+        await env.DB.prepare('UPDATE standalone_polls SET reveal_result = NULL, revealed_at = NULL WHERE id = ?').bind(m[1]).run();
+        return json({ ok: true });
+      }
       if (!['open', 'closed'].includes(b.status)) return json({ error: 'Estado inválido.' }, 400);
+      if (b.status === 'open' && poll.revealed_at) return json({ error: 'Oculta el resultado antes de reabrir la votación.' }, 400);
       await env.DB.prepare('UPDATE standalone_polls SET status = ? WHERE id = ?').bind(b.status, m[1]).run();
       return json({ ok: true });
     }
@@ -516,13 +528,13 @@ async function pageWithOpenGraph(env, req, url) {
     const poll = await env.DB.prepare('SELECT title FROM standalone_polls WHERE slug = ?').bind(pollSlug).first();
     if (poll) {
       const title = `Invitación a votar · ${poll.title}`;
-      const description = '';
-      const image = `${url.origin}/og.png`;
+      const description = 'Vota y sé parte de esta dulce sorpresa.';
+      const image = `${url.origin}/og-voting.png`;
       const tags = `<meta property="og:type" content="website"/><meta property="og:locale" content="es_CO"/><meta property="og:site_name" content="Invitación"/>
-<meta property="og:title" content="${esc(title)}"/><meta property="og:description" content=""/>
+<meta property="og:title" content="${esc(title)}"/><meta property="og:description" content="${esc(description)}"/>
 <meta property="og:url" content="${esc(`${url.origin}/?poll=${pollSlug}`)}"/><meta property="og:image" content="${esc(image)}"/>
-<meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/>
-<meta name="twitter:card" content="summary_large_image"/>`;
+<meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="Ositos celebrando una revelación de bebé"/>
+<meta name="twitter:card" content="summary_large_image"/><meta name="twitter:image" content="${esc(image)}"/>`;
       return new HTMLRewriter()
         .on('title', { element(e) { e.setInnerContent(title); } })
         .on('meta[name="description"]', { element(e) { e.setAttribute('content', description); } })
@@ -541,14 +553,14 @@ async function pageWithOpenGraph(env, req, url) {
   const title = reveal ? `${row.parent_names ? `${row.parent_names}: ` : ''}Revelación`
     : row.parent_names ? `${row.parent_names} te invitan a una celebración especial` : (row.title || 'Una invitación especial');
   const when = [fmtDateEs(row.event_date), row.event_time].filter(Boolean).join(' · ');
-  const lead = reveal ? 'Vota y descubre el secreto con nosotros.' : (row.baby_name ? `Celebremos la llegada de ${row.baby_name}.` : '');
-  const description = reveal ? '' : [lead, when, row.venue].filter(Boolean).join(' — ') || 'Abre tu carta y confirma tu asistencia.';
-  const image = `${url.origin}/og.png`;
+  const lead = reveal ? 'Vota por tu equipo y acompáñanos a descubrir el secreto.' : (row.baby_name ? `Celebremos la llegada de ${row.baby_name}.` : '');
+  const description = [lead, ...(!reveal ? [when, row.venue] : [])].filter(Boolean).join(' — ') || 'Abre tu carta y confirma tu asistencia.';
+  const image = `${url.origin}/${reveal ? 'og-reveal.png' : 'og.png'}`;
   const tags = `<meta property="og:type" content="website"/><meta property="og:locale" content="es_CO"/><meta property="og:site_name" content="Invitación"/>
 <meta property="og:title" content="${esc(title)}"/><meta property="og:description" content="${esc(description)}"/>
 <meta property="og:url" content="${esc(`${url.origin}/?i=${token}`)}"/><meta property="og:image" content="${esc(image)}"/>
-<meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/>
-<meta name="twitter:card" content="summary_large_image"/>`;
+<meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="${esc(reveal ? 'Invitación para descubrir si será niño o niña' : 'Una invitación especial para celebrar la llegada de un bebé')}"/>
+<meta name="twitter:card" content="summary_large_image"/><meta name="twitter:image" content="${esc(image)}"/>`;
   return new HTMLRewriter()
     .on('title', { element(e) { e.setInnerContent(title); } })
     .on('meta[name="description"]', { element(e) { e.setAttribute('content', description); } })
